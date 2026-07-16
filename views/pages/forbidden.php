@@ -1,0 +1,1 @@
+<section class="empty-state"><span><i class="bi bi-shield-lock"></i></span><h1>Acesso restrito</h1><p>Seu perfil não possui permissão para visualizar esta página.</p><a class="btn primary" href="<?= url('dashboard') ?>"><i class="bi bi-arrow-left"></i> Voltar à visão geral</a></section>

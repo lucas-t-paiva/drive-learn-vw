@@ -1,0 +1,1 @@
+<section class="empty-state"><span><i class="bi bi-signpost-split"></i></span><h1>Página não encontrada</h1><p>O endereço informado não existe ou foi movido.</p><a class="btn primary" href="<?= url('dashboard') ?>"><i class="bi bi-arrow-left"></i> Voltar à visão geral</a></section>

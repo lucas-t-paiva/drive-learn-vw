@@ -1,0 +1,9 @@
+RewriteEngine On
+php_value upload_max_filesize 512M
+php_value post_max_size 520M
+php_value max_execution_time 600
+php_value max_input_time 600
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.+)$ public/index.php?route=$1 [QSA,L]
+RewriteRule ^$ public/index.php [QSA,L]

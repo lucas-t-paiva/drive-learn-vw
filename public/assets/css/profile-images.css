@@ -1,0 +1,7 @@
+.access-avatar{overflow:hidden}
+.access-avatar img,.avatar img{width:100%;height:100%;object-fit:cover}
+.company-list-logo{object-fit:contain!important;background:#fff!important}
+.company-logo-preview img{object-fit:contain!important;background:#fff}
+.user-photo-preview{width:84px;height:84px;border-radius:50%}
+.user-image-upload{grid-template-columns:84px 1fr!important}
+@media(max-width:520px){.image-upload{align-items:flex-start!important}.user-image-upload{grid-template-columns:64px 1fr!important}.user-photo-preview{width:64px;height:64px}}

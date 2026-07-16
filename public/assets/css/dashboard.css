@@ -1,0 +1,18 @@
+.product-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.dashboard-metrics{grid-template-columns:repeat(5,minmax(0,1fr))}.metric-icon.navy{background:#e8eef7;color:var(--navy)}.dashboard-metrics .metric{padding:18px}.dashboard-metrics .metric strong{font-size:1.38rem}.overview-learning{margin-bottom:34px}.overview-learning .section-heading.compact{margin-top:8px}.real-continue .video-thumb{background-image:linear-gradient(90deg,rgba(0,20,45,.18),rgba(0,20,45,.55)),var(--continue-image);background-size:cover;background-position:center}.continue-link{display:inline-flex;align-items:center;gap:6px;margin-top:10px;font-size:.7rem;font-weight:800}.dashboard-empty{justify-content:center}.empty-round{display:grid;place-items:center;flex:0 0 72px;width:72px;height:72px;border-radius:50%;background:#eaf5fb;color:var(--blue);font-size:1.8rem}.donut{background:conic-gradient(var(--blue) var(--dashboard-progress,0%),#e8edf1 0)}.fleet-heading{margin-top:8px}.product-card-links{display:flex;align-items:center;justify-content:space-between;gap:12px}.spec-link{display:inline-flex;align-items:center;gap:5px;font-size:.68rem;font-weight:800;color:#a43838}.dashboard-vehicle-grid{margin-bottom:10px}
+.product-card{display:flex;flex-direction:column}
+.product-image{height:205px;background:linear-gradient(180deg,#fff,#f5f8fa);position:relative;display:grid;place-items:center;padding:20px}
+.product-image img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply}
+.product-image>i{font-size:4rem;color:#a7b5bf}
+.product-family{position:absolute;left:14px;top:14px;padding:5px 9px;background:var(--navy);color:#fff;border-radius:20px;font-size:.62rem;font-weight:800}
+.product-card .family-body{display:flex;flex-direction:column;flex:1}
+.product-card h3{font-size:1rem;min-height:40px}
+.product-specs{display:grid;gap:10px;margin:14px 0 18px}
+.product-specs span{display:grid;gap:2px}
+.product-specs small{font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.product-specs strong{font-size:.69rem;line-height:1.4}
+.product-card .card-meta{margin-top:auto}
+@media(max-width:1350px){.product-grid{grid-template-columns:repeat(2,1fr)}.dashboard-metrics{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:900px){.dashboard-metrics{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:700px){.product-grid{grid-template-columns:1fr}.product-image{height:230px}}
+@media(max-width:520px){.dashboard-metrics{grid-template-columns:1fr}.product-card-links{align-items:flex-start;flex-direction:column}}

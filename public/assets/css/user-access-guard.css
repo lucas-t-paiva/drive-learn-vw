@@ -1,0 +1,14 @@
+.membership-option.company-locked .membership-check{
+    grid-template-columns:25px 1fr;
+    cursor:default;
+}
+.membership-option.company-locked [data-company-locked]{
+    display:none;
+}
+.membership-option.company-locked .membership-check i{
+    grid-column:1;
+}
+.membership-option.company-locked .membership-check strong,
+.membership-option.company-locked .membership-check small{
+    grid-column:2;
+}

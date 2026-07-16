@@ -1,0 +1,2 @@
+</main><footer class="footer">Drive Learn · Volkswagen Caminhões e Ônibus <span>Ambiente de treinamento</span></footer></div></div>
+<div class="toast" id="toast"></div><script src="<?= url('public/assets/js/app.js') ?>?v=<?= (int)(@filemtime(__DIR__.'/../../public/assets/js/app.js') ?: 1) ?>"></script></body></html>

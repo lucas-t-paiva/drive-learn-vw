@@ -1,0 +1,31 @@
+.training-player-dialog{
+    padding-top:52px;
+}
+.training-player-dialog::before{
+    content:"Treinamento em reprodução";
+    position:absolute;
+    top:17px;
+    left:20px;
+    color:#d8e5ed;
+    font-size:.68rem;
+    font-weight:800;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+}
+.training-player-dialog .player-close{
+    top:7px;
+    right:12px;
+    background:#fff;
+    color:var(--navy);
+    border-color:#fff;
+    box-shadow:none;
+}
+.training-player-dialog .player-close:hover{
+    background:#ccefff;
+    border-color:#ccefff;
+}
+@media(max-width:600px){
+    .training-player-dialog{padding-top:48px}
+    .training-player-dialog::before{top:16px;left:15px;font-size:.59rem}
+    .training-player-dialog .player-close{top:5px;right:7px}
+}

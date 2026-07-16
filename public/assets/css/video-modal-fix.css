@@ -1,0 +1,86 @@
+.video-form-dialog .modal-content{
+    flex:1 1 auto;
+    height:auto;
+    overflow-y:auto;
+    overflow-x:hidden;
+    overflow-anchor:none;
+}
+.video-form-dialog form,
+.video-form-dialog .form-grid{
+    min-height:0;
+}
+.video-form-dialog .form-grid{
+    grid-auto-rows:max-content;
+    align-items:start;
+}
+.video-form-dialog .link-fieldset{
+    min-height:0;
+    align-self:start;
+}
+.video-form-dialog .selection-grid{
+    height:210px;
+    min-height:210px;
+    max-height:210px;
+    align-content:start;
+    grid-auto-rows:minmax(42px,max-content);
+    overscroll-behavior:contain;
+}
+.video-form-dialog .selection-grid label{
+    position:relative;
+    min-height:42px;
+    height:auto;
+}
+.video-form-dialog .selection-grid input[type="checkbox"]{
+    position:absolute;
+    top:50%;
+    left:10px;
+    width:1px;
+    height:1px;
+    padding:0;
+    margin:0;
+    opacity:0;
+    transform:translateY(-50%);
+    pointer-events:none;
+}
+.video-form-dialog .selection-grid span{
+    height:100%;
+}
+.video-form-dialog .selection-grid .family-filtered{
+    display:none!important;
+}
+.video-form-dialog .selection-actions{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+    gap:8px;
+    margin:0 0 9px;
+}
+.video-form-dialog .selection-action{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    border:0;
+    padding:4px 2px;
+    background:transparent;
+    color:#0068a8;
+    font:inherit;
+    font-size:12px;
+    font-weight:700;
+    cursor:pointer;
+}
+.video-form-dialog .selection-action:hover{
+    color:#003b70;
+    text-decoration:underline;
+}
+.video-form-dialog .selection-action:focus-visible{
+    outline:2px solid #008dd2;
+    outline-offset:3px;
+    border-radius:3px;
+}
+@media(max-width:700px){
+    .video-form-dialog .selection-grid{
+        height:230px;
+        min-height:230px;
+        max-height:230px;
+    }
+}

@@ -1,40 +1,27 @@
-name: Publicar na HostGator
+name: Publicar Drive Learn na HostGator
 
 on:
   push:
     branches:
       - main
+      - master
   workflow_dispatch:
 
 concurrency:
-  group: hostgator-production
+  group: hostgator-drive-learn-production
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  build-and-deploy:
-    name: Build e deploy
+  deploy:
+    name: Deploy do sistema PHP
     runs-on: ubuntu-latest
 
     steps:
       - name: Baixar o codigo
         uses: actions/checkout@v6
-
-      - name: Preparar o Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 22.13.0
-          cache: npm
-
-      - name: Instalar dependencias
-        run: npm ci
-
-      - name: Gerar o site estatico
-        run: npm run build
-        env:
-          NEXT_PUBLIC_BASE_PATH: ""
 
       - name: Publicar na HostGator
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
@@ -48,4 +35,12 @@ jobs:
           server-dir: ./drive-learn-vwco.luxsolution.com.br/
           security: strict
           timeout: 120000
-
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.github/**
+            **/.agents/**
+            **/README.md
+            **/database/**
+            **/storage/sessions/**
+            **/uploads/**

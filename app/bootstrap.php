@@ -384,6 +384,12 @@ function login_user(string $email, string $password, string $demoRole = ''): boo
         return true;
     }
 
+    $serverName = strtolower((string)($_SERVER['SERVER_NAME'] ?? ''));
+    $isLocalEnvironment = in_array($serverName, ['localhost', '127.0.0.1', '::1'], true)
+        || str_ends_with($serverName, '.local')
+        || str_ends_with($serverName, '.test');
+    if (!$isLocalEnvironment) return false;
+
     if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 4) return false;
     $roles = [
         'administrador' => ['Administrador', 'Fábrica Resende'],

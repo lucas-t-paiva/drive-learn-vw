@@ -23,6 +23,15 @@ jobs:
       - name: Baixar o codigo
         uses: actions/checkout@v6
 
+      - name: Preparar a configuracao do banco
+        env:
+          DB_HOST: ${{ secrets.HOSTGATOR_DB_HOST }}
+          DB_PORT: ${{ secrets.HOSTGATOR_DB_PORT }}
+          DB_DATABASE: ${{ secrets.HOSTGATOR_DB_NAME }}
+          DB_USERNAME: ${{ secrets.HOSTGATOR_DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.HOSTGATOR_DB_PASSWORD }}
+        run: php scripts/create-production-config.php
+
       - name: Publicar na HostGator
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
@@ -42,5 +51,6 @@ jobs:
             **/.agents/**
             **/README.md
             **/database/**
+            **/scripts/**
             **/storage/sessions/**
             **/uploads/**

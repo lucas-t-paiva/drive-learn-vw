@@ -25,8 +25,8 @@ jobs:
 
       - name: Preparar a configuracao do banco
         env:
-          DB_HOST: ${{ secrets.HOSTGATOR_DB_HOST }}
-          DB_PORT: ${{ secrets.HOSTGATOR_DB_PORT }}
+          DB_HOST: localhost
+          DB_PORT: "3306"
           DB_DATABASE: ${{ secrets.HOSTGATOR_DB_NAME }}
           DB_USERNAME: ${{ secrets.HOSTGATOR_DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.HOSTGATOR_DB_PASSWORD }}

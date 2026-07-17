@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 $values = [
-    'host' => trim((string)getenv('DB_HOST')),
+    'host' => trim((string)getenv('DB_HOST')) ?: 'localhost',
     'port' => trim((string)getenv('DB_PORT')),
     'database' => trim((string)getenv('DB_DATABASE')),
     'username' => trim((string)getenv('DB_USERNAME')),
@@ -13,9 +13,15 @@ if ($values['port'] === '') {
     $values['port'] = '3306';
 }
 
-foreach (['host', 'database', 'username', 'password'] as $required) {
-    if ($values[$required] === '') {
-        fwrite(STDERR, "Secret obrigatório ausente: {$required}.\n");
+$requiredSecrets = [
+    'database' => 'HOSTGATOR_DB_NAME',
+    'username' => 'HOSTGATOR_DB_USERNAME',
+    'password' => 'HOSTGATOR_DB_PASSWORD',
+];
+
+foreach ($requiredSecrets as $field => $secretName) {
+    if ($values[$field] === '') {
+        fwrite(STDERR, "Secret obrigatório ausente: {$secretName}.\n");
         exit(1);
     }
 }

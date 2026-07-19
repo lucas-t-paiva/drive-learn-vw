@@ -156,6 +156,14 @@ function remove_module_image(string $module, ?string $relativePath): void
     if ($base && $file && str_starts_with($file, $base . DIRECTORY_SEPARATOR) && is_file($file)) unlink($file);
 }
 
+function remove_model_image_if_unused(?string $relativePath): void
+{
+    if(!$relativePath)return;
+    $pdo=db();
+    if($pdo){$stmt=$pdo->prepare('SELECT COUNT(*) FROM modelos WHERE imagem=?');$stmt->execute([$relativePath]);if((int)$stmt->fetchColumn()>0)return;}
+    remove_module_image('modelos',$relativePath);
+}
+
 function save_family_image(array $file, ?string $current = null): ?string { return save_module_image('familias', $file, $current); }
 function remove_family_image(?string $path): void { remove_module_image('familias', $path); }
 
@@ -182,6 +190,14 @@ function remove_model_document(?string $relativePath): void
     $base = realpath(__DIR__ . '/../public/assets/documents/modelos');
     $file = realpath(__DIR__ . '/../' . $relativePath);
     if ($base && $file && str_starts_with($file, $base . DIRECTORY_SEPARATOR) && is_file($file)) unlink($file);
+}
+
+function remove_model_document_if_unused(?string $relativePath): void
+{
+    if(!$relativePath)return;
+    $pdo=db();
+    if($pdo){$stmt=$pdo->prepare('SELECT COUNT(*) FROM modelo_documentos WHERE arquivo=?');$stmt->execute([$relativePath]);if((int)$stmt->fetchColumn()>0)return;}
+    remove_model_document($relativePath);
 }
 
 function save_video_file(array $file, ?string $current = null): ?string
@@ -274,10 +290,22 @@ function hydrate_user_context(array $account): array
         $stmt->execute([(int)$account['id']]);
     }
     $companies = $stmt->fetchAll();
+    if ($master) {
+        array_unshift($companies, [
+            'empresa_id' => 0,
+            'empresa_nome' => 'Todas as empresas · visão global',
+            'empresa_tipo' => 'global',
+            'principal' => 0,
+            'administrador' => 1,
+        ]);
+    }
+    $hasRequested = array_key_exists('active_company_id', $_SESSION);
     $requested = (int)($_SESSION['active_company_id'] ?? 0);
     $active = null;
-    foreach ($companies as $company) if ((int)$company['empresa_id'] === $requested) { $active = $company; break; }
-    if (!$active) $active = $companies[0] ?? null;
+    if (!($master && $hasRequested && $requested === 0)) {
+        foreach ($companies as $company) if ((int)$company['empresa_id'] === $requested) { $active = $company; break; }
+    }
+    if (!$active && !($master && $hasRequested && $requested === 0)) $active = $companies[0] ?? null;
     if ($active) $_SESSION['active_company_id'] = (int)$active['empresa_id'];
 
     $account['companies'] = array_map(static fn(array $company): array => [
@@ -285,8 +313,8 @@ function hydrate_user_context(array $account): array
         'principal'=>(bool)$company['principal'],'administrador'=>(bool)$company['administrador'],
     ], $companies);
     $account['active_company_id'] = $active ? (int)$active['empresa_id'] : null;
-    $account['active_company_name'] = $active['empresa_nome'] ?? 'Volkswagen Caminhões e Ônibus';
-    $account['active_company_type'] = $active['empresa_tipo'] ?? null;
+    $account['active_company_name'] = $active['empresa_nome'] ?? ($master ? 'Visão global' : 'Volkswagen Caminhões e Ônibus');
+    $account['active_company_type'] = $active['empresa_tipo'] ?? ($master ? 'global' : null);
     $account['client_name'] = $account['active_company_name'];
     if (!$master && $active) {
         $account['perfil_id'] = (int)$active['perfil_id'];
@@ -307,7 +335,8 @@ function switch_active_company(int $companyId): bool
 {
     $current = user();
     $pdo = db();
-    if (!$current || !$pdo || $companyId < 1) return false;
+    if (!$current || !$pdo || $companyId < 0) return false;
+    if ($companyId === 0 && !is_master($current)) return false;
     $allowed = is_master($current);
     if (!$allowed) {
         $stmt = $pdo->prepare('SELECT COUNT(*) FROM usuario_empresas ue JOIN empresas e ON e.id=ue.empresa_id WHERE ue.usuario_id=? AND ue.empresa_id=? AND ue.ativo=1 AND e.ativo=1');
@@ -341,8 +370,14 @@ function accessible_client_company_ids(): array
 {
     $pdo = db(); $current = user();
     if (!$pdo || !$current) return [];
-    if (is_master($current)) return array_map('intval', $pdo->query("SELECT id FROM empresas WHERE tipo='cliente' AND ativo=1")->fetchAll(PDO::FETCH_COLUMN));
     $active = active_company_id();
+    if (is_master($current)) {
+        if (!$active) return array_map('intval', $pdo->query("SELECT id FROM empresas WHERE tipo='cliente' AND ativo=1")->fetchAll(PDO::FETCH_COLUMN));
+        if (($current['active_company_type'] ?? '') === 'cliente') return [$active];
+        $stmt = $pdo->prepare('SELECT cliente_id FROM empresa_clientes WHERE empresa_vw_id=? AND ativo=1');
+        $stmt->execute([$active]);
+        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
     if (!$active) return [];
     if (($current['active_company_type'] ?? '') === 'cliente') return [$active];
     $stmt = $pdo->prepare('SELECT cliente_id FROM empresa_clientes WHERE empresa_vw_id=? AND ativo=1');

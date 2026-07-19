@@ -30,16 +30,24 @@ require_once __DIR__ . '/../app/fleet_module.php';
 require_once __DIR__ . '/../app/library_module.php';
 require_once __DIR__ . '/../app/reports_module.php';
 require_once __DIR__ . '/../app/dashboard_module.php';
+require_once __DIR__ . '/../app/brands_module.php';
+require_once __DIR__ . '/../app/technical_catalog_module.php';
+require_once __DIR__ . '/../app/notifications_module.php';
 
 if ($route === 'empresa-ativa' && $method === 'POST') {
     verify_csrf();
+    $return=trim((string)($_POST['retorno']??'dashboard'),'/');
+    if(!preg_match('/^[a-z0-9-]+$/',$return))$return='dashboard';
     if (!switch_active_company((int)($_POST['empresa_id'] ?? 0))) flash('error','Você não possui acesso à empresa selecionada.');
-    redirect('dashboard');
+    else flash('success','Escopo alterado para '.(user()['active_company_name']??'a empresa selecionada').'. Os dados das páginas seguirão este contexto.');
+    redirect($return);
 }
 
+handle_notification_post($route,$method);
 handle_access_post($route, $method);
 handle_fleet_post($route, $method);
 handle_library_event($route, $method);
+handle_brand_post($route, $method);
 
 if ($route === 'familias' && $method === 'POST') {
     verify_csrf();
@@ -50,23 +58,25 @@ if ($route === 'familias' && $method === 'POST') {
 
         if ($action === 'create') {
             if (!can('families', 'create')) throw new RuntimeException('Seu perfil não permite cadastrar famílias.');
-            $name = trim((string)($_POST['nome'] ?? ''));
-            if ($name === '') throw new RuntimeException('Informe o nome da família.');
+            $name = trim((string)($_POST['nome'] ?? '')); $brandId=(int)($_POST['marca_id']??0);
+            if ($name === '' || !$brandId) throw new RuntimeException('Informe a marca e o nome da família.');
+            $brand=$pdo->prepare('SELECT id FROM marcas WHERE id=? AND ativo=1');$brand->execute([$brandId]);if(!$brand->fetchColumn())throw new RuntimeException('Selecione uma marca ativa.');
             $image = save_family_image($_FILES['imagem'] ?? []);
-            $stmt = $pdo->prepare('INSERT INTO familias(nome, descricao, imagem, ativo) VALUES(?,?,?,?)');
-            $stmt->execute([$name, trim((string)($_POST['descricao'] ?? '')), $image, (int)isset($_POST['ativo'])]);
+            $stmt = $pdo->prepare('INSERT INTO familias(marca_id,nome, descricao, imagem, ativo) VALUES(?,?,?,?,?)');
+            $stmt->execute([$brandId,$name, trim((string)($_POST['descricao'] ?? '')), $image, (int)isset($_POST['ativo'])]);
             flash('success', 'Família cadastrada com sucesso.');
         } elseif ($action === 'update') {
             if (!can('families', 'update')) throw new RuntimeException('Seu perfil não permite editar famílias.');
             $id = filter_var($_POST['id'] ?? null, FILTER_VALIDATE_INT);
-            $name = trim((string)($_POST['nome'] ?? ''));
-            if (!$id || $name === '') throw new RuntimeException('Dados da família inválidos.');
+            $name = trim((string)($_POST['nome'] ?? ''));$brandId=(int)($_POST['marca_id']??0);
+            if (!$id || $name === '' || !$brandId) throw new RuntimeException('Informe a marca e o nome da família.');
+            $brand=$pdo->prepare('SELECT id FROM marcas WHERE id=? AND ativo=1');$brand->execute([$brandId]);if(!$brand->fetchColumn())throw new RuntimeException('Selecione uma marca ativa.');
             $find = $pdo->prepare('SELECT imagem FROM familias WHERE id=?'); $find->execute([$id]);
             $current = $find->fetch();
             if (!$current) throw new RuntimeException('Família não encontrada.');
             $image = save_family_image($_FILES['imagem'] ?? [], $current['imagem']);
-            $stmt = $pdo->prepare('UPDATE familias SET nome=?, descricao=?, imagem=?, ativo=? WHERE id=?');
-            $stmt->execute([$name, trim((string)($_POST['descricao'] ?? '')), $image, (int)isset($_POST['ativo']), $id]);
+            $stmt = $pdo->prepare('UPDATE familias SET marca_id=?,nome=?, descricao=?, imagem=?, ativo=? WHERE id=?');
+            $stmt->execute([$brandId,$name, trim((string)($_POST['descricao'] ?? '')), $image, (int)isset($_POST['ativo']), $id]);
             if ($image !== $current['imagem']) remove_family_image($current['imagem']);
             flash('success', 'Família atualizada com sucesso.');
         } elseif ($action === 'delete') {
@@ -96,7 +106,40 @@ if ($route === 'modelos' && $method === 'POST') {
     try {
         $pdo = db();
         if (!$pdo || !database_ready()) throw new RuntimeException('O banco de dados não está disponível.');
-        if ($action === 'create' || $action === 'update') {
+        if ($action === 'bulk_update') {
+            if (!can('models','update')) throw new RuntimeException('Seu perfil não permite editar modelos em massa.');
+            $ids=array_values(array_unique(array_filter(array_map('intval',(array)($_POST['model_ids']??[])))));
+            if(!$ids)throw new RuntimeException('Selecione pelo menos um modelo.');
+            if(count($ids)>100)throw new RuntimeException('Edite no máximo 100 modelos por operação.');
+            $marks=implode(',',array_fill(0,count($ids),'?'));
+            $valid=$pdo->prepare("SELECT id,nome,imagem FROM modelos WHERE id IN ({$marks})");$valid->execute($ids);$selectedModels=$valid->fetchAll();
+            if(count($selectedModels)!==count($ids))throw new RuntimeException('Um dos modelos selecionados não existe mais. Atualize a página.');
+            $bulkOperation=(string)($_POST['bulk_operation']??'');
+
+            if(in_array($bulkOperation,['activate','deactivate'],true)){
+                $stmt=$pdo->prepare("UPDATE modelos SET ativo=? WHERE id IN ({$marks})");$stmt->execute(array_merge([$bulkOperation==='activate'?1:0],$ids));
+            }elseif($bulkOperation==='move_family'){
+                $familyId=(int)($_POST['bulk_family_id']??0);$family=$pdo->prepare('SELECT id FROM familias WHERE id=? AND ativo=1');$family->execute([$familyId]);
+                if(!$familyId||!$family->fetchColumn())throw new RuntimeException('Selecione uma família ativa para os modelos.');
+                $stmt=$pdo->prepare("UPDATE modelos SET familia_id=? WHERE id IN ({$marks})");$stmt->execute(array_merge([$familyId],$ids));
+            }elseif($bulkOperation==='technical'){
+                $field=(string)($_POST['bulk_field']??'');$value=trim((string)($_POST['bulk_value']??''));
+                $columns=['descricao'=>'descricao','motor'=>'motor','potencia'=>'potencia','torque'=>'torque','transmissao'=>'transmissao','pbt'=>'pbt'];
+                if($field==='entre_eixos'){
+                    $stmt=$pdo->prepare("UPDATE modelos SET especificacoes=JSON_SET(IF(JSON_VALID(especificacoes),especificacoes,JSON_OBJECT()),'$.entre_eixos',?) WHERE id IN ({$marks})");
+                    $stmt->execute(array_merge([$value],$ids));
+                }elseif(isset($columns[$field])){
+                    $stmt=$pdo->prepare("UPDATE modelos SET {$columns[$field]}=? WHERE id IN ({$marks})");$stmt->execute(array_merge([$value],$ids));
+                }else throw new RuntimeException('Selecione uma informação técnica válida.');
+            }elseif($bulkOperation==='images'){
+                $files=$_FILES['imagens']??[];$saved=[];$old=[];$pdo->beginTransaction();
+                try{
+                    foreach($selectedModels as $model){$modelId=(int)$model['id'];$file=['name'=>$files['name'][$modelId]??'','type'=>$files['type'][$modelId]??'','tmp_name'=>$files['tmp_name'][$modelId]??'','error'=>$files['error'][$modelId]??UPLOAD_ERR_NO_FILE,'size'=>$files['size'][$modelId]??0];if((int)$file['error']===UPLOAD_ERR_NO_FILE)continue;$image=save_module_image('modelos',$file,$model['imagem']);$pdo->prepare('UPDATE modelos SET imagem=? WHERE id=?')->execute([$image,$modelId]);$saved[]=$image;if($image!==$model['imagem'])$old[]=$model['imagem'];}
+                    if(!$saved)throw new RuntimeException('Escolha ao menos uma imagem para enviar.');$pdo->commit();foreach($old as $path)remove_model_image_if_unused($path);
+                }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();foreach($saved as $path)remove_module_image('modelos',$path);throw $e;}
+            }else throw new RuntimeException('Selecione uma ação em massa válida.');
+            flash('success',count($ids).' modelo(s) atualizado(s) em massa com sucesso.');
+        } elseif ($action === 'create' || $action === 'update') {
             $permission = $action === 'create' ? 'create' : 'update';
             if (!can('models', $permission)) throw new RuntimeException('Seu perfil não permite salvar modelos.');
             $id = $action === 'update' ? filter_var($_POST['id'] ?? null, FILTER_VALIDATE_INT) : null;
@@ -122,24 +165,27 @@ if ($route === 'modelos' && $method === 'POST') {
             $technicalUrl = trim((string)($_POST['ficha_url'] ?? '')) ?: null;
             $implementationUrl = trim((string)($_POST['diretriz_url'] ?? '')) ?: null;
             foreach ([$technicalUrl,$implementationUrl] as $documentUrl) if ($documentUrl && !filter_var($documentUrl,FILTER_VALIDATE_URL)) throw new RuntimeException('Informe uma URL válida para o documento técnico.');
-            $values = [$familyId, $name, slugify($name), trim((string)($_POST['descricao'] ?? '')), $image, trim((string)($_POST['motor'] ?? '')), trim((string)($_POST['potencia'] ?? '')), trim((string)($_POST['torque'] ?? '')), trim((string)($_POST['transmissao'] ?? '')), trim((string)($_POST['pbt'] ?? '')), (int)isset($_POST['ativo'])];
+            $wheelbase=trim((string)($_POST['entre_eixos']??''));
+            $specifications=json_encode(['entre_eixos'=>$wheelbase],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+            $values = [$familyId, $name, slugify($name), trim((string)($_POST['descricao'] ?? '')), $image, trim((string)($_POST['motor'] ?? '')), trim((string)($_POST['potencia'] ?? '')), trim((string)($_POST['torque'] ?? '')), trim((string)($_POST['transmissao'] ?? '')), trim((string)($_POST['pbt'] ?? '')), $specifications,(int)isset($_POST['ativo'])];
             if ($action === 'create') {
-                $stmt = $pdo->prepare('INSERT INTO modelos(familia_id,nome,slug,descricao,imagem,motor,potencia,torque,transmissao,pbt,ativo) VALUES(?,?,?,?,?,?,?,?,?,?,?)');
+                $stmt = $pdo->prepare('INSERT INTO modelos(familia_id,nome,slug,descricao,imagem,motor,potencia,torque,transmissao,pbt,especificacoes,ativo) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)');
                 $stmt->execute($values);
                 $id = (int)$pdo->lastInsertId();
                 flash('success', 'Modelo cadastrado com sucesso.');
             } else {
+                $values[count($values)-2]=$wheelbase;
                 $values[] = $id;
-                $stmt = $pdo->prepare('UPDATE modelos SET familia_id=?,nome=?,slug=?,descricao=?,imagem=?,motor=?,potencia=?,torque=?,transmissao=?,pbt=?,ativo=? WHERE id=?');
+                $stmt = $pdo->prepare("UPDATE modelos SET familia_id=?,nome=?,slug=?,descricao=?,imagem=?,motor=?,potencia=?,torque=?,transmissao=?,pbt=?,especificacoes=JSON_SET(IF(JSON_VALID(especificacoes),especificacoes,JSON_OBJECT()),'$.entre_eixos',?),ativo=? WHERE id=?");
                 $stmt->execute($values);
-                if ($image !== $current['imagem']) remove_module_image('modelos', $current['imagem']);
+                if ($image !== $current['imagem']) remove_model_image_if_unused($current['imagem']);
                 flash('success', 'Modelo atualizado com sucesso.');
             }
             $saveDocument = $pdo->prepare('INSERT INTO modelo_documentos(modelo_id,tipo,titulo,arquivo,url_origem,ativo) VALUES(?,?,?,?,?,1) ON DUPLICATE KEY UPDATE titulo=VALUES(titulo),arquivo=VALUES(arquivo),url_origem=VALUES(url_origem),ativo=1');
             if ($technicalFile || $technicalUrl) $saveDocument->execute([$id,'ficha_tecnica','Ficha técnica completa',$technicalFile,$technicalUrl]);
             if ($implementationFile || $implementationUrl) $saveDocument->execute([$id,'diretriz_implementacao','Diretrizes de implementação',$implementationFile,$implementationUrl]);
-            if ($technicalFile !== $currentDocuments['ficha_tecnica']['arquivo']) remove_model_document($currentDocuments['ficha_tecnica']['arquivo']);
-            if ($implementationFile !== $currentDocuments['diretriz_implementacao']['arquivo']) remove_model_document($currentDocuments['diretriz_implementacao']['arquivo']);
+            if ($technicalFile !== $currentDocuments['ficha_tecnica']['arquivo']) remove_model_document_if_unused($currentDocuments['ficha_tecnica']['arquivo']);
+            if ($implementationFile !== $currentDocuments['diretriz_implementacao']['arquivo']) remove_model_document_if_unused($currentDocuments['diretriz_implementacao']['arquivo']);
         } elseif ($action === 'delete') {
             if (!can('models', 'delete')) throw new RuntimeException('Seu perfil não permite excluir modelos.');
             $id = filter_var($_POST['id'] ?? null, FILTER_VALIDATE_INT);
@@ -150,8 +196,8 @@ if ($route === 'modelos' && $method === 'POST') {
             if ((int)$current['frotas'] > 0) throw new RuntimeException('Este modelo está presente em frotas e não pode ser excluído. Remova os vínculos primeiro.');
             $documentFind=$pdo->prepare('SELECT arquivo FROM modelo_documentos WHERE modelo_id=?');$documentFind->execute([$id]);$documentFiles=$documentFind->fetchAll(PDO::FETCH_COLUMN);
             $stmt = $pdo->prepare('DELETE FROM modelos WHERE id=?'); $stmt->execute([$id]);
-            remove_module_image('modelos', $current['imagem']);
-            foreach($documentFiles as $documentFile)remove_model_document($documentFile);
+            remove_model_image_if_unused($current['imagem']);
+            foreach($documentFiles as $documentFile)remove_model_document_if_unused($documentFile);
             flash('success', 'Modelo excluído com sucesso.');
         }
     } catch (PDOException $e) {
@@ -343,49 +389,59 @@ if ($route === 'videos' && $method === 'POST') {
 }
 $pages = [
     '' => ['dashboard','Visão geral'], 'dashboard' => ['dashboard','Visão geral'],
-    'biblioteca' => ['library','Biblioteca de treinamentos'], 'frota' => ['fleet','Minha frota'], 'normas-emissoes' => ['emission_standards','Normas de emissões'],
+    'biblioteca' => ['library','Biblioteca de treinamentos'], 'frota' => ['fleet','Minha frota'], 'catalogo-tecnico' => ['technical_catalog','Catálogo técnico'], 'normas-emissoes' => ['emission_standards','Normas de emissões'], 'marcas' => ['brands','Marcas de veículos'],
     'familias' => ['families','Famílias de veículos'], 'modelos' => ['models','Modelos'],
     'categorias' => ['categories','Categorias'], 'subcategorias' => ['subcategories','Subcategorias'], 'videos' => ['videos','Vídeos'],
     'empresas-vwco' => ['organizations','Empresas VWCO'], 'clientes' => ['clients','Clientes'], 'usuarios' => ['users','Usuários'],
     'permissoes' => ['permissions','Perfis e permissões'], 'relatorios' => ['reports','Relatórios e avaliações'],
+    'cotacao-ia' => ['ai_quote','Cotação de IA'],
 ];
 $selected = $pages[$route] ?? null;
 if (!$selected) { http_response_code(404); $selected = ['not-found','Página não encontrada']; }
 [$resource, $pageTitle] = $selected;
+if ($resource === 'ai_quote' && !is_master()) { http_response_code(403); $resource = 'forbidden'; $pageTitle = 'Acesso restrito'; }
 if ($resource !== 'not-found' && !can($resource, 'view')) { http_response_code(403); $resource = 'forbidden'; $pageTitle = 'Acesso restrito'; }
 
-$families = []; $models = []; $categories = []; $subcategories = []; $videos = []; $familyOptions = []; $modelOptions = []; $categoryOptions = []; $subcategoryOptions = []; $dashboard = []; $totalRows = 0; $totalPages = 1; $access = []; $fleet = []; $emissionStandards = []; $library = []; $reports = [];
+$families = []; $models = []; $categories = []; $subcategories = []; $videos = []; $familyOptions = []; $modelOptions = []; $categoryOptions = []; $subcategoryOptions = []; $brandOptions=[]; $dashboard = []; $totalRows = 0; $totalPages = 1; $access = []; $fleet = []; $emissionStandards = []; $library = []; $reports = []; $brandPage=[]; $technicalCatalog=[];
 if (in_array($resource, ['organizations','clients','users','permissions'], true) && database_ready()) $access = load_access_page($resource);
 if ($resource === 'fleet' && database_ready()) $fleet = load_fleet_page();
 if ($resource === 'emission_standards' && database_ready()) $emissionStandards = load_emission_standards_page();
 if ($resource === 'library' && database_ready()) $library = load_library_page();
 if ($resource === 'reports' && database_ready()) $reports = load_reports_page();
 if ($resource === 'dashboard' && database_ready()) $dashboard = load_dashboard_page();
+if ($resource === 'brands' && database_ready()) $brandPage = load_brands_page();
+if ($resource === 'technical_catalog' && database_ready()) $technicalCatalog = load_technical_catalog_page();
 if ($resource === 'families' && database_ready()) {
     [$page, $perPage, $offset] = pagination_params();
-    $q = trim((string)($_GET['q'] ?? '')); $status = (string)($_GET['status'] ?? '');
+    $q = trim((string)($_GET['q'] ?? '')); $status = (string)($_GET['status'] ?? '');$brandFilter=(int)($_GET['marca']??0);$brandOptions=db()->query('SELECT id,nome FROM marcas WHERE ativo=1 ORDER BY nome')->fetchAll();
     $where = []; $params = [];
-    if ($q !== '') { $where[] = '(f.nome LIKE ? OR f.descricao LIKE ?)'; $params[] = "%{$q}%"; $params[] = "%{$q}%"; }
+    if ($q !== '') { $where[] = '(f.nome LIKE ? OR f.descricao LIKE ? OR ma.nome LIKE ?)'; $params[] = "%{$q}%"; $params[] = "%{$q}%"; $params[] = "%{$q}%"; }
     if (in_array($status, ['ativo','inativo'], true)) { $where[] = 'f.ativo=?'; $params[] = $status === 'ativo' ? 1 : 0; }
+    if($brandFilter){$where[]='f.marca_id=?';$params[]=$brandFilter;}
     $whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
-    $count = db()->prepare('SELECT COUNT(*) FROM familias f' . $whereSql); $count->execute($params); $totalRows = (int)$count->fetchColumn();
+    $count = db()->prepare('SELECT COUNT(*) FROM familias f JOIN marcas ma ON ma.id=f.marca_id' . $whereSql); $count->execute($params); $totalRows = (int)$count->fetchColumn();
     $totalPages = max(1, (int)ceil($totalRows / $perPage));
-    $stmt = db()->prepare('SELECT f.*, (SELECT COUNT(*) FROM modelos m WHERE m.familia_id=f.id) modelos, (SELECT COUNT(*) FROM video_familias vf WHERE vf.familia_id=f.id) videos FROM familias f' . $whereSql . ' ORDER BY f.nome LIMIT ? OFFSET ?');
+    $stmt = db()->prepare('SELECT f.*,ma.nome marca_nome,(SELECT COUNT(*) FROM modelos m WHERE m.familia_id=f.id) modelos, (SELECT COUNT(*) FROM video_familias vf WHERE vf.familia_id=f.id) videos FROM familias f JOIN marcas ma ON ma.id=f.marca_id' . $whereSql . ' ORDER BY ma.nome,f.nome LIMIT ? OFFSET ?');
     foreach ($params as $i => $value) $stmt->bindValue($i + 1, $value);
     $stmt->bindValue(count($params) + 1, $perPage, PDO::PARAM_INT); $stmt->bindValue(count($params) + 2, $offset, PDO::PARAM_INT); $stmt->execute(); $families = $stmt->fetchAll();
 }
 if ($resource === 'models' && database_ready()) {
     [$page, $perPage, $offset] = pagination_params();
-    $q = trim((string)($_GET['q'] ?? '')); $status = (string)($_GET['status'] ?? ''); $familyFilter = (int)($_GET['familia'] ?? 0);
-    $familyOptions = db()->query('SELECT id,nome FROM familias WHERE ativo=1 ORDER BY nome')->fetchAll();
+    $q = trim((string)($_GET['q'] ?? '')); $status = (string)($_GET['status'] ?? ''); $brandFilter = (int)($_GET['marca'] ?? 0); $familyFilter = (int)($_GET['familia'] ?? 0); $fichaFilter = (string)($_GET['ficha'] ?? '');
+    $brandOptions = db()->query('SELECT id,nome FROM marcas WHERE ativo=1 ORDER BY nome')->fetchAll();
+    $familyOptions = db()->query('SELECT f.id,f.marca_id,f.nome,ma.nome marca_nome FROM familias f JOIN marcas ma ON ma.id=f.marca_id WHERE f.ativo=1 ORDER BY ma.nome,f.nome')->fetchAll();
     $where = []; $params = [];
     if ($q !== '') { $where[] = '(m.nome LIKE ? OR m.motor LIKE ? OR m.potencia LIKE ?)'; $params[] = "%{$q}%"; $params[] = "%{$q}%"; $params[] = "%{$q}%"; }
     if (in_array($status, ['ativo','inativo'], true)) { $where[] = 'm.ativo=?'; $params[] = $status === 'ativo' ? 1 : 0; }
+    if ($brandFilter > 0) { $where[] = 'f.marca_id=?'; $params[] = $brandFilter; }
     if ($familyFilter > 0) { $where[] = 'm.familia_id=?'; $params[] = $familyFilter; }
+    $technicalSheetExists = "EXISTS(SELECT 1 FROM modelo_documentos mdf WHERE mdf.modelo_id=m.id AND mdf.tipo='ficha_tecnica' AND mdf.ativo=1 AND (NULLIF(TRIM(mdf.arquivo),'') IS NOT NULL OR NULLIF(TRIM(mdf.url_origem),'') IS NOT NULL))";
+    if ($fichaFilter === 'com') $where[] = $technicalSheetExists;
+    elseif ($fichaFilter === 'sem') $where[] = "NOT {$technicalSheetExists}";
     $whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
-    $count = db()->prepare('SELECT COUNT(*) FROM modelos m' . $whereSql); $count->execute($params); $totalRows = (int)$count->fetchColumn();
+    $count = db()->prepare('SELECT COUNT(*) FROM modelos m JOIN familias f ON f.id=m.familia_id' . $whereSql); $count->execute($params); $totalRows = (int)$count->fetchColumn();
     $totalPages = max(1, (int)ceil($totalRows / $perPage));
-    $stmt = db()->prepare("SELECT m.*,f.nome familia_nome,(SELECT COUNT(*) FROM video_modelos vm WHERE vm.modelo_id=m.id) videos,(SELECT COALESCE(SUM(fr.quantidade),0) FROM frotas fr WHERE fr.modelo_id=m.id) frota,(SELECT md.arquivo FROM modelo_documentos md WHERE md.modelo_id=m.id AND md.tipo='ficha_tecnica' AND md.ativo=1 LIMIT 1) ficha_arquivo,(SELECT md.url_origem FROM modelo_documentos md WHERE md.modelo_id=m.id AND md.tipo='ficha_tecnica' AND md.ativo=1 LIMIT 1) ficha_url,(SELECT md.arquivo FROM modelo_documentos md WHERE md.modelo_id=m.id AND md.tipo='diretriz_implementacao' AND md.ativo=1 LIMIT 1) diretriz_arquivo,(SELECT md.url_origem FROM modelo_documentos md WHERE md.modelo_id=m.id AND md.tipo='diretriz_implementacao' AND md.ativo=1 LIMIT 1) diretriz_url FROM modelos m JOIN familias f ON f.id=m.familia_id" . $whereSql . ' ORDER BY f.nome,m.nome LIMIT ? OFFSET ?');
+    $stmt = db()->prepare("SELECT m.*,f.nome familia_nome,ma.nome marca_nome,(SELECT COUNT(*) FROM video_modelos vm WHERE vm.modelo_id=m.id) videos,(SELECT COALESCE(SUM(fr.quantidade),0) FROM frotas fr WHERE fr.modelo_id=m.id) frota,(SELECT md.arquivo FROM modelo_documentos md WHERE md.modelo_id=m.id AND md.tipo='ficha_tecnica' AND md.ativo=1 LIMIT 1) ficha_arquivo,(SELECT md.url_origem FROM modelo_documentos md WHERE md.modelo_id=m.id AND md.tipo='ficha_tecnica' AND md.ativo=1 LIMIT 1) ficha_url,(SELECT md.arquivo FROM modelo_documentos md WHERE md.modelo_id=m.id AND md.tipo='diretriz_implementacao' AND md.ativo=1 LIMIT 1) diretriz_arquivo,(SELECT md.url_origem FROM modelo_documentos md WHERE md.modelo_id=m.id AND md.tipo='diretriz_implementacao' AND md.ativo=1 LIMIT 1) diretriz_url FROM modelos m JOIN familias f ON f.id=m.familia_id JOIN marcas ma ON ma.id=f.marca_id" . $whereSql . ' ORDER BY ma.nome,f.nome,m.nome LIMIT ? OFFSET ?');
     foreach ($params as $i => $value) $stmt->bindValue($i + 1, $value);
     $stmt->bindValue(count($params) + 1, $perPage, PDO::PARAM_INT); $stmt->bindValue(count($params) + 2, $offset, PDO::PARAM_INT); $stmt->execute(); $models = $stmt->fetchAll();
 }
@@ -418,8 +474,9 @@ if($resource==='videos'&&database_ready()){
     $q=trim((string)($_GET['q']??'')); $status=(string)($_GET['status']??''); $typeFilter=(string)($_GET['tipo']??''); $categoryFilter=(int)($_GET['categoria']??0);
     $categoryOptions=db()->query('SELECT id,nome FROM categorias WHERE ativo=1 ORDER BY ordem,nome')->fetchAll();
     $subcategoryOptions=db()->query('SELECT id,categoria_id,nome FROM subcategorias WHERE ativo=1 ORDER BY ordem,nome')->fetchAll();
-    $familyOptions=db()->query('SELECT id,nome FROM familias WHERE ativo=1 ORDER BY nome')->fetchAll();
-    $modelOptions=db()->query('SELECT m.id,m.familia_id,m.nome,f.nome familia_nome FROM modelos m JOIN familias f ON f.id=m.familia_id WHERE m.ativo=1 ORDER BY f.nome,m.nome')->fetchAll();
+    $brandOptions=db()->query('SELECT id,nome FROM marcas WHERE ativo=1 ORDER BY nome')->fetchAll();
+    $familyOptions=db()->query('SELECT f.id,f.marca_id,f.nome,ma.nome marca_nome FROM familias f JOIN marcas ma ON ma.id=f.marca_id WHERE f.ativo=1 ORDER BY ma.nome,f.nome')->fetchAll();
+    $modelOptions=db()->query('SELECT m.id,m.familia_id,f.marca_id,m.nome,f.nome familia_nome,ma.nome marca_nome FROM modelos m JOIN familias f ON f.id=m.familia_id JOIN marcas ma ON ma.id=f.marca_id WHERE m.ativo=1 ORDER BY ma.nome,f.nome,m.nome')->fetchAll();
     $where=[];$params=[];
     if($q!==''){ $where[]='(v.titulo LIKE ? OR v.descricao LIKE ?)';$params[]="%{$q}%";$params[]="%{$q}%"; }
     if(in_array($status,['rascunho','publicado','arquivado'],true)){ $where[]='v.status=?';$params[]=$status; }
@@ -431,6 +488,7 @@ if($resource==='videos'&&database_ready()){
     $stmt=db()->prepare($sql);foreach($params as $i=>$value)$stmt->bindValue($i+1,$value);$stmt->bindValue(count($params)+1,$perPage,PDO::PARAM_INT);$stmt->bindValue(count($params)+2,$offset,PDO::PARAM_INT);$stmt->execute();$videos=$stmt->fetchAll();
 }
 
+$headerNotifications=load_header_notifications();
 require __DIR__ . '/../views/layout/header.php';
 $view = __DIR__ . '/../views/pages/' . $resource . '.php';
 require is_file($view) ? $view : __DIR__ . '/../views/pages/generic.php';

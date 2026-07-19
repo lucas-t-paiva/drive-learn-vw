@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 function dashboard_scope_user_sql(array $companyIds, array &$params, string $userAlias = 'u'): string
 {
-    if (is_master()) return '1=1';
+    if (is_master() && (user()['active_company_type'] ?? '') === 'global') return '1=1';
     if (!$companyIds) return '1=0';
     $marks = implode(',', array_fill(0, count($companyIds), '?'));
     array_push($params, ...$companyIds);
@@ -57,7 +57,7 @@ function load_dashboard_page(): array
     $stmt->execute($videoParams); $metrics['videos'] = (int)$stmt->fetchColumn();
 
     $peopleCompanyIds = $clientIds;
-    if (!is_master() && (user()['active_company_type'] ?? '') !== 'cliente' && active_company_id()) $peopleCompanyIds[] = active_company_id();
+    if ((user()['active_company_type'] ?? '') !== 'cliente' && active_company_id()) $peopleCompanyIds[] = active_company_id();
     $peopleCompanyIds = array_values(array_unique(array_map('intval', $peopleCompanyIds)));
     $peopleParams = [];
     $peopleWhere = dashboard_scope_user_sql($peopleCompanyIds, $peopleParams);

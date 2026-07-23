@@ -49,7 +49,7 @@ $modelPayload=static function(array $model) use($specLabels):array {
 </section>
 
 <section class="catalog-compare-bar" data-catalog-compare-bar hidden>
-    <div><span class="compare-icon"><i class="bi bi-columns-gap"></i></span><div><strong>Veículos selecionados</strong><small>Escolha de 2 a 3 modelos para comparar.</small></div></div>
+    <div><span class="compare-icon"><i class="bi bi-columns-gap"></i></span><div><strong>Veículos selecionados</strong><small>Escolha de 2 a 5 modelos para comparar.</small></div></div>
     <div class="compare-selection" data-catalog-selection></div>
     <button class="btn primary" type="button" data-catalog-open-comparison disabled>Comparar agora <i class="bi bi-arrow-right"></i></button>
 </section>

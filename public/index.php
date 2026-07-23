@@ -106,6 +106,20 @@ if ($route === 'modelos' && $method === 'POST') {
     try {
         $pdo = db();
         if (!$pdo || !database_ready()) throw new RuntimeException('O banco de dados não está disponível.');
+        $modelSpecificationFields = [
+            'entre_eixos' => 'Entre-eixos',
+            'tipo_veiculo' => 'Tipo de veículo',
+            'energia' => 'Energia',
+            'configuracao' => 'Configuração / tração',
+            'tipo_carroceria' => 'Tipo de carroceria',
+            'emissoes' => 'Norma de emissões',
+            'bateria' => 'Bateria',
+            'autonomia' => 'Autonomia',
+            'capacidade_passageiros' => 'Capacidade de passageiros',
+            'comprimento' => 'Comprimento',
+            'carregamento' => 'Carregamento',
+            'mercado' => 'Mercado / aplicação',
+        ];
         if ($action === 'bulk_update') {
             if (!can('models','update')) throw new RuntimeException('Seu perfil não permite editar modelos em massa.');
             $ids=array_values(array_unique(array_filter(array_map('intval',(array)($_POST['model_ids']??[])))));
@@ -125,8 +139,9 @@ if ($route === 'modelos' && $method === 'POST') {
             }elseif($bulkOperation==='technical'){
                 $field=(string)($_POST['bulk_field']??'');$value=trim((string)($_POST['bulk_value']??''));
                 $columns=['descricao'=>'descricao','motor'=>'motor','potencia'=>'potencia','torque'=>'torque','transmissao'=>'transmissao','pbt'=>'pbt'];
-                if($field==='entre_eixos'){
-                    $stmt=$pdo->prepare("UPDATE modelos SET especificacoes=JSON_SET(IF(JSON_VALID(especificacoes),especificacoes,JSON_OBJECT()),'$.entre_eixos',?) WHERE id IN ({$marks})");
+                if(isset($modelSpecificationFields[$field])){
+                    $jsonPath = '$.' . $field;
+                    $stmt=$pdo->prepare("UPDATE modelos SET especificacoes=JSON_SET(IF(JSON_VALID(especificacoes),especificacoes,JSON_OBJECT()),'{$jsonPath}',?) WHERE id IN ({$marks})");
                     $stmt->execute(array_merge([$value],$ids));
                 }elseif(isset($columns[$field])){
                     $stmt=$pdo->prepare("UPDATE modelos SET {$columns[$field]}=? WHERE id IN ({$marks})");$stmt->execute(array_merge([$value],$ids));
@@ -149,10 +164,10 @@ if ($route === 'modelos' && $method === 'POST') {
             $family = $pdo->prepare('SELECT id FROM familias WHERE id=? AND ativo=1'); $family->execute([$familyId]);
             if (!$family->fetch()) throw new RuntimeException('Selecione uma família ativa.');
 
-            $current = ['imagem' => null];
+            $current = ['imagem' => null, 'especificacoes' => null];
             $currentDocuments = ['ficha_tecnica'=>['arquivo'=>null,'url_origem'=>null],'diretriz_implementacao'=>['arquivo'=>null,'url_origem'=>null]];
             if ($action === 'update') {
-                $find = $pdo->prepare('SELECT imagem FROM modelos WHERE id=?'); $find->execute([$id]);
+                $find = $pdo->prepare('SELECT imagem,especificacoes FROM modelos WHERE id=?'); $find->execute([$id]);
                 $current = $find->fetch();
                 if (!$current) throw new RuntimeException('Modelo não encontrado.');
                 $documentFind = $pdo->prepare("SELECT tipo,arquivo,url_origem FROM modelo_documentos WHERE modelo_id=? AND tipo IN ('ficha_tecnica','diretriz_implementacao')");
@@ -165,8 +180,11 @@ if ($route === 'modelos' && $method === 'POST') {
             $technicalUrl = trim((string)($_POST['ficha_url'] ?? '')) ?: null;
             $implementationUrl = trim((string)($_POST['diretriz_url'] ?? '')) ?: null;
             foreach ([$technicalUrl,$implementationUrl] as $documentUrl) if ($documentUrl && !filter_var($documentUrl,FILTER_VALIDATE_URL)) throw new RuntimeException('Informe uma URL válida para o documento técnico.');
-            $wheelbase=trim((string)($_POST['entre_eixos']??''));
-            $specifications=json_encode(['entre_eixos'=>$wheelbase],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+            $specificationData=json_decode((string)($current['especificacoes']??''),true);
+            if(!is_array($specificationData))$specificationData=[];
+            foreach($modelSpecificationFields as $field=>$label)$specificationData[$field]=trim((string)($_POST[$field]??''));
+            $specifications=json_encode($specificationData,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+            if($specifications===false)throw new RuntimeException('Não foi possível preparar as especificações técnicas.');
             $values = [$familyId, $name, slugify($name), trim((string)($_POST['descricao'] ?? '')), $image, trim((string)($_POST['motor'] ?? '')), trim((string)($_POST['potencia'] ?? '')), trim((string)($_POST['torque'] ?? '')), trim((string)($_POST['transmissao'] ?? '')), trim((string)($_POST['pbt'] ?? '')), $specifications,(int)isset($_POST['ativo'])];
             if ($action === 'create') {
                 $stmt = $pdo->prepare('INSERT INTO modelos(familia_id,nome,slug,descricao,imagem,motor,potencia,torque,transmissao,pbt,especificacoes,ativo) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)');
@@ -174,9 +192,8 @@ if ($route === 'modelos' && $method === 'POST') {
                 $id = (int)$pdo->lastInsertId();
                 flash('success', 'Modelo cadastrado com sucesso.');
             } else {
-                $values[count($values)-2]=$wheelbase;
                 $values[] = $id;
-                $stmt = $pdo->prepare("UPDATE modelos SET familia_id=?,nome=?,slug=?,descricao=?,imagem=?,motor=?,potencia=?,torque=?,transmissao=?,pbt=?,especificacoes=JSON_SET(IF(JSON_VALID(especificacoes),especificacoes,JSON_OBJECT()),'$.entre_eixos',?),ativo=? WHERE id=?");
+                $stmt = $pdo->prepare("UPDATE modelos SET familia_id=?,nome=?,slug=?,descricao=?,imagem=?,motor=?,potencia=?,torque=?,transmissao=?,pbt=?,especificacoes=?,ativo=? WHERE id=?");
                 $stmt->execute($values);
                 if ($image !== $current['imagem']) remove_model_image_if_unused($current['imagem']);
                 flash('success', 'Modelo atualizado com sucesso.');

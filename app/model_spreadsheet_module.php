@@ -376,6 +376,33 @@ function model_import_sync_technical_specifications(PDO $pdo, int $modelId, arra
     }
 }
 
+function model_import_unique_slug(PDO $pdo, string $name, int $modelId = 0, string $currentSlug = ''): string
+{
+    $desiredSlug = slugify($name);
+    $check = $pdo->prepare('SELECT id FROM modelos WHERE slug=? LIMIT 1');
+    $check->execute([$desiredSlug]);
+    $ownerId = (int)($check->fetchColumn() ?: 0);
+    if ($ownerId === 0 || $ownerId === $modelId) return $desiredSlug;
+
+    $currentSlug = trim($currentSlug);
+    if ($currentSlug !== '') {
+        $check->execute([$currentSlug]);
+        $currentOwnerId = (int)($check->fetchColumn() ?: 0);
+        if ($currentOwnerId === 0 || $currentOwnerId === $modelId) return $currentSlug;
+    }
+
+    $suffix = $modelId > 0 ? (string)$modelId : '2';
+    $candidate = $desiredSlug . '-' . $suffix;
+    $sequence = 2;
+    while (true) {
+        $check->execute([$candidate]);
+        $candidateOwnerId = (int)($check->fetchColumn() ?: 0);
+        if ($candidateOwnerId === 0 || $candidateOwnerId === $modelId) return $candidate;
+        $candidate = $desiredSlug . '-' . $suffix . '-' . $sequence;
+        $sequence++;
+    }
+}
+
 function model_spreadsheet_import(PDO $pdo, array $file): array
 {
     if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) throw new RuntimeException('Selecione um arquivo XLSX válido.');
@@ -443,12 +470,13 @@ function model_spreadsheet_import(PDO $pdo, array $file): array
             if($brandName===''||$familyReference===''||$name==='')throw new RuntimeException("Modelos, linha {$excelRow}: informe marca, família e nome.");
             $familyName=str_contains($familyReference,'·')?trim((string)substr($familyReference,strpos($familyReference,'·')+strlen('·'))):$familyReference;
             $family=$pdo->prepare('SELECT f.id FROM familias f JOIN marcas ma ON ma.id=f.marca_id WHERE ma.nome=? AND f.nome=?');$family->execute([$brandName,$familyName]);$familyId=(int)($family->fetchColumn()?:0);if(!$familyId)throw new RuntimeException("Modelos, linha {$excelRow}: família \"{$familyName}\" da marca \"{$brandName}\" não encontrada.");
-            $id=(int)($row['id']??0);$currentSpecs=[];$existingId=0;
-            if($id>0){$find=$pdo->prepare('SELECT id,especificacoes FROM modelos WHERE id=?');$find->execute([$id]);$existing=$find->fetch();if(!$existing)throw new RuntimeException("Modelos, linha {$excelRow}: ID {$id} não existe.");$existingId=$id;$currentSpecs=json_decode((string)$existing['especificacoes'],true)?:[];}
-            else{$find=$pdo->prepare('SELECT id,especificacoes FROM modelos WHERE slug=?');$find->execute([slugify($name)]);$existing=$find->fetch();if($existing){$existingId=(int)$existing['id'];$currentSpecs=json_decode((string)$existing['especificacoes'],true)?:[];}}
+            $id=(int)($row['id']??0);$currentSpecs=[];$existingId=0;$currentSlug='';
+            if($id>0){$find=$pdo->prepare('SELECT id,slug,especificacoes FROM modelos WHERE id=?');$find->execute([$id]);$existing=$find->fetch();if(!$existing)throw new RuntimeException("Modelos, linha {$excelRow}: ID {$id} não existe.");$existingId=$id;$currentSlug=(string)($existing['slug']??'');$currentSpecs=json_decode((string)$existing['especificacoes'],true)?:[];}
+            else{$find=$pdo->prepare('SELECT id,slug,especificacoes FROM modelos WHERE slug=?');$find->execute([slugify($name)]);$existing=$find->fetch();if($existing){$existingId=(int)$existing['id'];$currentSlug=(string)($existing['slug']??'');$currentSpecs=json_decode((string)$existing['especificacoes'],true)?:[];}}
             foreach($specificationColumns as $column=>$key)$currentSpecs[$key]=trim((string)($row[$column]??''));
             $specifications=json_encode($currentSpecs,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-            $values=[$familyId,$name,slugify($name),$row['descricao']??'',$row['motor']??'',$row['potencia']??'',$row['torque']??'',$row['transmissao']??'',$row['pbt']??'',$row['pbtc']??'',$row['relacao_de_reducao']??'',$specifications,model_import_active($row['ativo']??'')];
+            $modelSlug=model_import_unique_slug($pdo,$name,$existingId,$currentSlug);
+            $values=[$familyId,$name,$modelSlug,$row['descricao']??'',$row['motor']??'',$row['potencia']??'',$row['torque']??'',$row['transmissao']??'',$row['pbt']??'',$row['pbtc']??'',$row['relacao_de_reducao']??'',$specifications,model_import_active($row['ativo']??'')];
             if($existingId){model_import_require_permission('models','update','Modelos');$pdo->prepare('UPDATE modelos SET familia_id=?,nome=?,slug=?,descricao=?,motor=?,potencia=?,torque=?,transmissao=?,pbt=?,pbtc=?,relacao_reducao=?,especificacoes=?,ativo=? WHERE id=?')->execute(array_merge($values,[$existingId]));$counts['atualizados']++;$modelId=$existingId;}
             else{model_import_require_permission('models','create','Modelos');$pdo->prepare('INSERT INTO modelos(familia_id,nome,slug,descricao,motor,potencia,torque,transmissao,pbt,pbtc,relacao_reducao,especificacoes,ativo) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute($values);$modelId=(int)$pdo->lastInsertId();$counts['criados']++;}
             $technicalUrl=trim((string)($row['url_da_ficha_tecnica']??''));

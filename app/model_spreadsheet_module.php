@@ -326,6 +326,56 @@ function model_import_require_permission(string $resource, string $operation, st
     if (!can($resource, $operation)) throw new RuntimeException("Seu perfil não permite {$operation} registros da aba {$sheet}.");
 }
 
+function model_import_sync_technical_specifications(PDO $pdo, int $modelId, array $specifications, ?string $sourceUrl): void
+{
+    static $tableAvailable = null;
+    if ($tableAvailable === null) {
+        $check = $pdo->query("SHOW TABLES LIKE 'modelo_especificacoes_tecnicas'");
+        $tableAvailable = (bool)$check->fetchColumn();
+    }
+    if (!$tableAvailable) return;
+
+    $metadata = [
+        'motor' => ['Motor', null],
+        'potencia' => ['Potência', null],
+        'torque' => ['Torque', null],
+        'transmissao' => ['Transmissão', null],
+        'pbt' => ['PBT', 'kg'],
+        'pbtc' => ['PBTC', 'kg'],
+        'relacao_reducao' => ['Relação de redução', null],
+        'entre_eixos' => ['Entre-eixos', 'mm'],
+        'tipo_veiculo' => ['Tipo de veículo', null],
+        'energia' => ['Energia / propulsão', null],
+        'configuracao' => ['Configuração / tração', null],
+        'tipo_carroceria' => ['Tipo de carroceria', null],
+        'emissoes' => ['Norma de emissões', null],
+        'bateria' => ['Bateria', null],
+        'autonomia' => ['Autonomia', null],
+        'capacidade_passageiros' => ['Capacidade de passageiros', null],
+        'comprimento' => ['Comprimento', null],
+        'carregamento' => ['Carregamento', null],
+        'mercado' => ['Mercado / aplicação', null],
+    ];
+    $upsert = $pdo->prepare(
+        'INSERT INTO modelo_especificacoes_tecnicas
+            (modelo_id,chave,rotulo,valor,unidade,fonte_url,conferido_em)
+         VALUES(?,?,?,?,?,?,CURRENT_DATE)
+         ON DUPLICATE KEY UPDATE
+            rotulo=VALUES(rotulo),valor=VALUES(valor),unidade=VALUES(unidade),
+            fonte_url=VALUES(fonte_url),conferido_em=VALUES(conferido_em)'
+    );
+    $delete = $pdo->prepare('DELETE FROM modelo_especificacoes_tecnicas WHERE modelo_id=? AND chave=?');
+
+    foreach ($metadata as $key => [$label, $unit]) {
+        $value = trim((string)($specifications[$key] ?? ''));
+        if ($value === '') {
+            $delete->execute([$modelId, $key]);
+            continue;
+        }
+        $upsert->execute([$modelId, $key, $label, $value, $unit, $sourceUrl ?: null]);
+    }
+}
+
 function model_spreadsheet_import(PDO $pdo, array $file): array
 {
     if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) throw new RuntimeException('Selecione um arquivo XLSX válido.');
@@ -402,7 +452,18 @@ function model_spreadsheet_import(PDO $pdo, array $file): array
             if($existingId){model_import_require_permission('models','update','Modelos');$pdo->prepare('UPDATE modelos SET familia_id=?,nome=?,slug=?,descricao=?,motor=?,potencia=?,torque=?,transmissao=?,pbt=?,pbtc=?,relacao_reducao=?,especificacoes=?,ativo=? WHERE id=?')->execute(array_merge($values,[$existingId]));$counts['atualizados']++;$modelId=$existingId;}
             else{model_import_require_permission('models','create','Modelos');$pdo->prepare('INSERT INTO modelos(familia_id,nome,slug,descricao,motor,potencia,torque,transmissao,pbt,pbtc,relacao_reducao,especificacoes,ativo) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute($values);$modelId=(int)$pdo->lastInsertId();$counts['criados']++;}
             $technicalUrl=trim((string)($row['url_da_ficha_tecnica']??''));
-            if($technicalUrl!==''){if(!filter_var($technicalUrl,FILTER_VALIDATE_URL))throw new RuntimeException("Modelos, linha {$excelRow}: URL da ficha técnica inválida.");$pdo->prepare("INSERT INTO modelo_documentos(modelo_id,tipo,titulo,url_origem,ativo) VALUES(?,'ficha_tecnica','Ficha técnica completa',?,1) ON DUPLICATE KEY UPDATE url_origem=VALUES(url_origem),ativo=1")->execute([$modelId,$technicalUrl]);}
+            if($technicalUrl!==''&&!filter_var($technicalUrl,FILTER_VALIDATE_URL))throw new RuntimeException("Modelos, linha {$excelRow}: URL da ficha técnica inválida.");
+            if($technicalUrl!=='')$pdo->prepare("INSERT INTO modelo_documentos(modelo_id,tipo,titulo,url_origem,ativo) VALUES(?,'ficha_tecnica','Ficha técnica completa',?,1) ON DUPLICATE KEY UPDATE url_origem=VALUES(url_origem),ativo=1")->execute([$modelId,$technicalUrl]);
+            model_import_sync_technical_specifications($pdo,$modelId,[
+                'motor'=>$row['motor']??'',
+                'potencia'=>$row['potencia']??'',
+                'torque'=>$row['torque']??'',
+                'transmissao'=>$row['transmissao']??'',
+                'pbt'=>$row['pbt']??'',
+                'pbtc'=>$row['pbtc']??'',
+                'relacao_reducao'=>$row['relacao_de_reducao']??'',
+                ...$currentSpecs,
+            ],$technicalUrl?:null);
         }
         $pdo->commit();
         return $counts;

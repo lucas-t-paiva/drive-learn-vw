@@ -224,7 +224,7 @@ function model_xlsx_read_sheets(string $path): array
 
         $workbook = simplexml_load_string($workbookXml, SimpleXMLElement::class, LIBXML_NONET);
         $relationships = simplexml_load_string($relationshipsXml, SimpleXMLElement::class, LIBXML_NONET);
-        if (!$workbook || !$relationships) throw new RuntimeException('Não foi possível ler a estrutura do Excel.');
+        if ($workbook === false || $relationships === false) throw new RuntimeException('Não foi possível ler a estrutura do Excel.');
 
         $relationshipMap = [];
         foreach ($relationships->children('http://schemas.openxmlformats.org/package/2006/relationships')->Relationship as $relationship) {
@@ -236,7 +236,7 @@ function model_xlsx_read_sheets(string $path): array
         $sharedXml = $zip->getFromName('xl/sharedStrings.xml');
         if ($sharedXml !== false) {
             $shared = simplexml_load_string($sharedXml, SimpleXMLElement::class, LIBXML_NONET);
-            if ($shared) {
+            if ($shared !== false) {
                 foreach ($shared->children('http://schemas.openxmlformats.org/spreadsheetml/2006/main')->si as $item) {
                     $parts = $item->xpath('.//*[local-name()="t"]') ?: [];
                     $sharedStrings[] = implode('', array_map(static fn(SimpleXMLElement $part): string => (string)$part, $parts));
@@ -257,7 +257,7 @@ function model_xlsx_read_sheets(string $path): array
             $sheetXml = $zip->getFromName($sheetPath);
             if ($sheetXml === false) continue;
             $sheet = simplexml_load_string($sheetXml, SimpleXMLElement::class, LIBXML_NONET);
-            if (!$sheet) continue;
+            if ($sheet === false) continue;
 
             $rows = [];
             foreach ($sheet->children($mainNamespace)->sheetData->row as $rowNode) {

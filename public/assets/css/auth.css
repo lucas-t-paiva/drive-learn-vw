@@ -1,0 +1,19 @@
+.login-notice{display:flex;align-items:flex-start;gap:9px;margin:14px 0;padding:11px 12px;border:1px solid transparent;border-radius:8px;font-size:.68rem;line-height:1.5}
+.login-notice i{flex:0 0 auto;margin-top:1px;font-size:.9rem}
+.login-notice.success{color:#146b4b;background:#e8f6ef;border-color:#c5ead7}
+.login-notice.error{color:#9e2633;background:#fff0f1;border-color:#f3cbd0}
+.login-notice.info{color:#174c6c;background:#eef7fb;border-color:#c9e2ee}
+.password-reset-card{width:min(430px,100%)}
+.auth-step-icon{display:grid;place-items:center;width:45px;height:45px;margin-bottom:18px;border-radius:12px;color:var(--blue);background:#e9f6fb;font-size:1.25rem}
+.auth-form{display:grid;gap:17px;margin-top:20px}
+.auth-form>label{display:grid;gap:7px;font-size:.72rem;font-weight:700}
+.auth-form .btn{margin-top:2px}
+.verification-code{height:62px;text-align:center;font-size:1.65rem;font-weight:800;letter-spacing:.36em;padding-left:calc(12px + .36em);font-variant-numeric:tabular-nums;color:var(--navy)}
+.code-expiration{display:flex;align-items:center;gap:7px;padding:9px 11px;border-radius:7px;background:#f5f8fa;color:var(--muted);font-size:.65rem}
+.code-expiration strong{margin-left:auto;color:var(--navy);font-variant-numeric:tabular-nums}
+.code-expiration.expired{color:#a22d39;background:#fff0f1}
+.code-expiration.expired strong{color:#a22d39}
+.resend-form{text-align:center;margin:15px 0 0}
+.resend-form button{border:0;background:transparent;color:var(--blue);font-size:.68rem;font-weight:700}
+.back-to-login{display:flex;justify-content:center;align-items:center;gap:6px;margin-top:18px;font-size:.68rem;font-weight:700}
+@media(max-width:460px){.auth-step-icon{margin-bottom:14px}.verification-code{font-size:1.45rem}}

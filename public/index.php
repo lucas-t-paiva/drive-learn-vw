@@ -1,16 +1,19 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/../app/bootstrap.php';
+require_once __DIR__ . '/../app/password_reset_module.php';
 
 $route = trim((string)($_GET['route'] ?? ''), '/');
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
+handle_password_reset_route($route,$method);
+
 if ($route === 'login') {
     if (user()) redirect('dashboard');
-    $error = null;
+    $error = null; $loginFlash=pull_flash();
     if ($method === 'POST') {
         verify_csrf();
-        if (login_user(trim((string)$_POST['email']), (string)$_POST['password'])) redirect('dashboard');
+        if (login_user(trim((string)$_POST['email']), (string)$_POST['password'], isset($_POST['remember']))) redirect('dashboard');
         $error = 'E-mail ou senha inválidos. Confira os dados e tente novamente.';
     }
     require __DIR__ . '/../views/login.php'; exit;
@@ -18,6 +21,7 @@ if ($route === 'login') {
 
 if ($route === 'logout') {
     if ($method === 'POST') verify_csrf();
+    revoke_remember_token();
     $_SESSION = []; session_destroy(); redirect('login');
 }
 

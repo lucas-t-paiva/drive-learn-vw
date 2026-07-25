@@ -12,6 +12,8 @@ Faça um backup antes de importar. No phpMyAdmin, selecione o banco correto e im
 8. `20260725_008_modelos_importacao_pesos_reducao.sql` — separa PBT e PBTC, adiciona relação de redução e prepara o cadastro de modelos para importação e exportação.
 9. `20260725_009_catalogo_onibus_multimarcas.sql` — adiciona famílias e modelos de ônibus Mercedes-Benz, Volvo, Scania e IVECO BUS, com dados auditados e fichas técnicas oficiais locais.
 10. `20260725_010_tipo_veiculo_familias_frotas.sql` — classifica famílias e composições de frota como caminhão ou ônibus e cria os índices usados pelos novos filtros.
+11. `20260725_011_lembrar_login.sql` — cria os tokens seguros e revogáveis utilizados pela opção “Lembrar de mim”.
+12. `20260725_012_recuperacao_senha_email.sql` — cria os códigos de recuperação de senha com expiração, limite de tentativas e uso único.
 
 Cada arquivo registra sua versão em `schema_migrations`. Os arquivos foram preparados para uma única importação; não edite nem pule a ordem.
 

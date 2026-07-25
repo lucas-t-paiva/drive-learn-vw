@@ -405,7 +405,61 @@ function can(string $resource, string $action = 'view'): bool
     return in_array("{$resource}.{$action}", $permissions, true);
 }
 
-function login_user(string $email, string $password, string $demoRole = ''): bool
+function remember_cookie_name(): string { return 'drive_learn_remember'; }
+function remember_cookie_options(int $expires): array
+{
+    $forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0] ?? ''));
+    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $forwardedProto === 'https';
+    return ['expires'=>$expires,'path'=>'/','secure'=>$secure,'httponly'=>true,'samesite'=>'Lax'];
+}
+function clear_remember_cookie(): void
+{
+    setcookie(remember_cookie_name(), '', remember_cookie_options(time()-3600));
+    unset($_COOKIE[remember_cookie_name()]);
+}
+function revoke_remember_token(): void
+{
+    $cookie=(string)($_COOKIE[remember_cookie_name()]??'');
+    $selector=explode(':',$cookie,2)[0]??'';
+    $pdo=db();
+    if($pdo&&preg_match('/^[a-f0-9]{24}$/',$selector)){
+        try{$pdo->prepare('DELETE FROM usuario_tokens_lembrar WHERE seletor=?')->execute([$selector]);}catch(Throwable $e){}
+    }
+    clear_remember_cookie();
+}
+function issue_remember_token(int $userId): bool
+{
+    $pdo=db();if(!$pdo||$userId<1)return false;
+    try{
+        $selector=bin2hex(random_bytes(12));$validator=bin2hex(random_bytes(32));$expires=time()+60*60*24*30;
+        $pdo->prepare('DELETE FROM usuario_tokens_lembrar WHERE usuario_id=? OR expira_em<NOW()')->execute([$userId]);
+        $stmt=$pdo->prepare('INSERT INTO usuario_tokens_lembrar(usuario_id,seletor,token_hash,expira_em,user_agent_hash) VALUES(?,?,?,FROM_UNIXTIME(?),?)');
+        $stmt->execute([$userId,$selector,hash('sha256',$validator),$expires,hash('sha256',(string)($_SERVER['HTTP_USER_AGENT']??''))]);
+        setcookie(remember_cookie_name(),"{$selector}:{$validator}",remember_cookie_options($expires));
+        $_COOKIE[remember_cookie_name()]="{$selector}:{$validator}";
+        return true;
+    }catch(Throwable $e){clear_remember_cookie();return false;}
+}
+function restore_remembered_user(): bool
+{
+    if(user())return true;
+    $cookie=(string)($_COOKIE[remember_cookie_name()]??'');$parts=explode(':',$cookie,2);
+    if(count($parts)!==2||!preg_match('/^[a-f0-9]{24}$/',$parts[0])||!preg_match('/^[a-f0-9]{64}$/',$parts[1])){if($cookie!=='')clear_remember_cookie();return false;}
+    [$selector,$validator]=$parts;$pdo=db();if(!$pdo)return false;
+    try{
+        $stmt=$pdo->prepare('SELECT t.id token_id,t.token_hash,u.*,p.nome role_name,p.slug role_slug FROM usuario_tokens_lembrar t JOIN usuarios u ON u.id=t.usuario_id AND u.ativo=1 JOIN perfis p ON p.id=u.perfil_id AND p.ativo=1 WHERE t.seletor=? AND t.expira_em>NOW() LIMIT 1');
+        $stmt->execute([$selector]);$account=$stmt->fetch();
+        if(!$account||!hash_equals((string)$account['token_hash'],hash('sha256',$validator))){
+            $pdo->prepare('DELETE FROM usuario_tokens_lembrar WHERE seletor=?')->execute([$selector]);clear_remember_cookie();return false;
+        }
+        $tokenId=(int)$account['token_id'];unset($account['token_id'],$account['token_hash'],$account['senha_hash']);
+        session_regenerate_id(true);$_SESSION['user']=hydrate_user_context($account);
+        $pdo->prepare('UPDATE usuario_tokens_lembrar SET ultimo_uso_em=NOW() WHERE id=?')->execute([$tokenId]);
+        return true;
+    }catch(Throwable $e){return false;}
+}
+
+function login_user(string $email, string $password, bool $remember = false, string $demoRole = ''): bool
 {
     $pdo = db();
     if ($pdo && database_ready()) {
@@ -414,8 +468,10 @@ function login_user(string $email, string $password, string $demoRole = ''): boo
         $found = $stmt->fetch();
         if (!$found || !password_verify($password, $found['senha_hash'])) return false;
         $pdo->prepare('UPDATE usuarios SET ultimo_acesso=NOW() WHERE id=?')->execute([(int)$found['id']]);
+        $userId=(int)$found['id'];session_regenerate_id(true);
         unset($found['senha_hash']);
         $_SESSION['user'] = hydrate_user_context($found);
+        if($remember)issue_remember_token($userId);else revoke_remember_token();
         return true;
     }
 
@@ -437,6 +493,7 @@ function login_user(string $email, string $password, string $demoRole = ''): boo
         'role_slug' => $slug, 'role_name' => $roles[$slug][0], 'client_name' => $roles[$slug][1],
         'permissions' => $slug === 'cliente' ? ['dashboard.view','library.view','fleet.view','fleet.create','feedback.create'] : ['dashboard.view','library.view','fleet.view','families.view','models.view','categories.view','subcategories.view','videos.view','clients.view','reports.view'],
     ];
+    session_regenerate_id(true);
     return true;
 }
 
@@ -470,3 +527,5 @@ function demo_data(): array
         ],
     ];
 }
+
+restore_remembered_user();

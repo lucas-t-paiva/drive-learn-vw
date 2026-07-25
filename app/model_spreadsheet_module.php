@@ -88,7 +88,7 @@ function model_spreadsheet_export(PDO $pdo): never
     if (!class_exists('ZipArchive')) throw new RuntimeException('A extensão ZIP do PHP é necessária para gerar o Excel.');
 
     $brands = $pdo->query('SELECT id,nome,pais_origem,site_oficial,descricao,ativo FROM marcas ORDER BY nome')->fetchAll();
-    $families = $pdo->query('SELECT f.id,ma.nome marca_nome,f.nome,f.descricao,f.ativo FROM familias f JOIN marcas ma ON ma.id=f.marca_id ORDER BY ma.nome,f.nome')->fetchAll();
+    $families = $pdo->query('SELECT f.id,ma.nome marca_nome,f.tipo_veiculo,f.nome,f.descricao,f.ativo FROM familias f JOIN marcas ma ON ma.id=f.marca_id ORDER BY ma.nome,f.nome')->fetchAll();
     $categories = $pdo->query('SELECT id,nome,descricao,icone,ordem,ativo FROM categorias ORDER BY ordem,nome')->fetchAll();
     $subcategories = $pdo->query('SELECT s.id,c.nome categoria_nome,s.nome,s.descricao,s.ordem,s.ativo FROM subcategorias s JOIN categorias c ON c.id=s.categoria_id ORDER BY c.nome,s.ordem,s.nome')->fetchAll();
     $models = $pdo->query("SELECT m.*,ma.nome marca_nome,f.nome familia_nome,
@@ -118,8 +118,8 @@ function model_spreadsheet_export(PDO $pdo): never
 
     $brandRows = [['ID','Nome da marca','País de origem','Site oficial','Descrição','Ativo']];
     foreach ($brands as $brand) $brandRows[] = [(int)$brand['id'],$brand['nome'],$brand['pais_origem'],$brand['site_oficial'],$brand['descricao'],$yesNo($brand['ativo'])];
-    $familyRows = [['ID','Marca','Nome da família','Descrição','Ativo']];
-    foreach ($families as $family) $familyRows[] = [(int)$family['id'],$family['marca_nome'],$family['nome'],$family['descricao'],$yesNo($family['ativo'])];
+    $familyRows = [['ID','Marca','Tipo de veículo','Nome da família','Descrição','Ativo']];
+    foreach ($families as $family) $familyRows[] = [(int)$family['id'],$family['marca_nome'],$family['tipo_veiculo']==='onibus'?'Ônibus':'Caminhão',$family['nome'],$family['descricao'],$yesNo($family['ativo'])];
     $categoryRows = [['ID','Nome da categoria','Descrição','Ícone Bootstrap','Ordem','Ativo']];
     foreach ($categories as $category) $categoryRows[] = [(int)$category['id'],$category['nome'],$category['descricao'],$category['icone'],(int)$category['ordem'],$yesNo($category['ativo'])];
     $subcategoryRows = [['ID','Categoria','Nome da subcategoria','Descrição','Ordem','Ativo']];
@@ -130,15 +130,15 @@ function model_spreadsheet_export(PDO $pdo): never
     $categoryNames = array_values(array_unique(array_column($categories, 'nome')));
     $subcategoryNames = array_map(static fn(array $subcategory): string => $subcategory['categoria_nome'].' · '.$subcategory['nome'], $subcategories);
     $maxListRows = max(count($brandNames), count($familyNames), count($categoryNames), count($subcategoryNames), 2);
-    $listRows = [['Marcas','Famílias','Categorias','Subcategorias','Status']];
+    $listRows = [['Marcas','Famílias','Categorias','Subcategorias','Tipos de veículo','Status']];
     for ($index = 0; $index < $maxListRows; $index++) {
-        $listRows[] = [$brandNames[$index] ?? '',$familyNames[$index] ?? '',$categoryNames[$index] ?? '',$subcategoryNames[$index] ?? '',$index === 0 ? 'Sim' : ($index === 1 ? 'Não' : '')];
+        $listRows[] = [$brandNames[$index] ?? '',$familyNames[$index] ?? '',$categoryNames[$index] ?? '',$subcategoryNames[$index] ?? '',$index === 0?'Caminhão':($index===1?'Ônibus':''),$index === 0 ? 'Sim' : ($index === 1 ? 'Não' : '')];
     }
 
     $brandEnd = max(2, count($brandNames) + 1);
     $familyEnd = max(2, count($familyNames) + 1);
     $categoryEnd = max(2, count($categoryNames) + 1);
-    $statusFormula = "'Listas'!\$E\$2:\$E\$3";
+    $statusFormula = "'Listas'!\$F\$2:\$F\$3";
     $sheets = [
         ['Modelos', $modelRows, array_fill(0, 26, 18), [
             ['range'=>'B2:B5000','formula'=>"'Listas'!\$A\$2:\$A\${$brandEnd}"],
@@ -146,16 +146,17 @@ function model_spreadsheet_export(PDO $pdo): never
             ['range'=>'Z2:Z5000','formula'=>$statusFormula],
         ], false],
         ['Marcas', $brandRows, [10,24,18,34,42,12], [['range'=>'F2:F5000','formula'=>$statusFormula]], false],
-        ['Familias', $familyRows, [10,24,28,42,12], [
+        ['Familias', $familyRows, [10,24,20,28,42,12], [
             ['range'=>'B2:B5000','formula'=>"'Listas'!\$A\$2:\$A\${$brandEnd}"],
-            ['range'=>'E2:E5000','formula'=>$statusFormula],
+            ['range'=>'C2:C5000','formula'=>"'Listas'!\$E\$2:\$E\$3"],
+            ['range'=>'F2:F5000','formula'=>$statusFormula],
         ], false],
         ['Categorias', $categoryRows, [10,28,44,20,10,12], [['range'=>'F2:F5000','formula'=>$statusFormula]], false],
         ['Subcategorias', $subcategoryRows, [10,28,30,44,10,12], [
             ['range'=>'B2:B5000','formula'=>"'Listas'!\$C\$2:\$C\${$categoryEnd}"],
             ['range'=>'F2:F5000','formula'=>$statusFormula],
         ], false],
-        ['Listas', $listRows, [28,40,30,42,12], [], true],
+        ['Listas', $listRows, [28,40,30,42,20,12], [], true],
     ];
 
     $tmpDir = __DIR__ . '/../storage/tmp';
@@ -371,11 +372,11 @@ function model_spreadsheet_import(PDO $pdo, array $file): array
         }
 
         foreach ($rowsBySheet['Familias'] as $row) {
-            $excelRow=(int)$row['_excel_row'];$brandName=trim((string)($row['marca']??''));$name=trim((string)($row['nome_da_familia']??''));if($brandName===''||$name==='')throw new RuntimeException("Famílias, linha {$excelRow}: informe marca e família.");
+            $excelRow=(int)$row['_excel_row'];$brandName=trim((string)($row['marca']??''));$name=trim((string)($row['nome_da_familia']??''));$typeRaw=model_import_header((string)($row['tipo_de_veiculo']??'caminhao'));$vehicleType=str_contains($typeRaw,'onibus')?'onibus':'caminhao';if($brandName===''||$name==='')throw new RuntimeException("Famílias, linha {$excelRow}: informe marca e família.");
             $brand=$pdo->prepare('SELECT id FROM marcas WHERE nome=?');$brand->execute([$brandName]);$brandId=(int)($brand->fetchColumn()?:0);if(!$brandId)throw new RuntimeException("Famílias, linha {$excelRow}: marca \"{$brandName}\" não encontrada.");
             $id=(int)($row['id']??0);$active=model_import_active($row['ativo']??'');
-            if($id>0){model_import_require_permission('families','update','Familias');$check=$pdo->prepare('SELECT id FROM familias WHERE id=?');$check->execute([$id]);if(!$check->fetchColumn())throw new RuntimeException("Famílias, linha {$excelRow}: ID {$id} não existe.");$pdo->prepare('UPDATE familias SET marca_id=?,nome=?,descricao=?,ativo=? WHERE id=?')->execute([$brandId,$name,$row['descricao']??'',$active,$id]);$counts['atualizados']++;}
-            else{$find=$pdo->prepare('SELECT id FROM familias WHERE marca_id=? AND nome=?');$find->execute([$brandId,$name]);$existing=(int)($find->fetchColumn()?:0);if($existing){model_import_require_permission('families','update','Familias');$pdo->prepare('UPDATE familias SET descricao=?,ativo=? WHERE id=?')->execute([$row['descricao']??'',$active,$existing]);$counts['atualizados']++;}else{model_import_require_permission('families','create','Familias');$pdo->prepare('INSERT INTO familias(marca_id,nome,descricao,ativo) VALUES(?,?,?,?)')->execute([$brandId,$name,$row['descricao']??'',$active]);$counts['criados']++;}}
+            if($id>0){model_import_require_permission('families','update','Familias');$check=$pdo->prepare('SELECT id FROM familias WHERE id=?');$check->execute([$id]);if(!$check->fetchColumn())throw new RuntimeException("Famílias, linha {$excelRow}: ID {$id} não existe.");$pdo->prepare('UPDATE familias SET marca_id=?,tipo_veiculo=?,nome=?,descricao=?,ativo=? WHERE id=?')->execute([$brandId,$vehicleType,$name,$row['descricao']??'',$active,$id]);$counts['atualizados']++;}
+            else{$find=$pdo->prepare('SELECT id FROM familias WHERE marca_id=? AND nome=?');$find->execute([$brandId,$name]);$existing=(int)($find->fetchColumn()?:0);if($existing){model_import_require_permission('families','update','Familias');$pdo->prepare('UPDATE familias SET tipo_veiculo=?,descricao=?,ativo=? WHERE id=?')->execute([$vehicleType,$row['descricao']??'',$active,$existing]);$counts['atualizados']++;}else{model_import_require_permission('families','create','Familias');$pdo->prepare('INSERT INTO familias(marca_id,tipo_veiculo,nome,descricao,ativo) VALUES(?,?,?,?,?)')->execute([$brandId,$vehicleType,$name,$row['descricao']??'',$active]);$counts['criados']++;}}
         }
 
         foreach ($rowsBySheet['Subcategorias'] as $row) {

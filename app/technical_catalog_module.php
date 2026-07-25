@@ -9,7 +9,7 @@ function load_technical_catalog_page(): array
     $models = $pdo->query(
         "SELECT m.id,m.familia_id,m.nome,m.slug,m.descricao,m.imagem,m.motor,m.potencia,m.torque,
                 m.transmissao,m.pbt,m.pbtc,m.relacao_reducao,m.especificacoes,
-                f.nome familia_nome,f.marca_id,
+                f.nome familia_nome,f.marca_id,f.tipo_veiculo,
                 ma.nome marca_nome,ma.logo marca_logo,
                 md.arquivo ficha_arquivo,md.url_origem ficha_url,md.fonte_pagina ficha_fonte,
                 (SELECT COUNT(*) FROM video_modelos vm JOIN videos v ON v.id=vm.video_id WHERE vm.modelo_id=m.id AND v.status='publicado') videos_publicados
@@ -29,7 +29,7 @@ function load_technical_catalog_page(): array
             'id'=>(int)$model['marca_id'],'nome'=>$model['marca_nome'],'logo'=>$model['marca_logo'],
         ];
         $familyMap[(int)$model['familia_id']] = [
-            'id'=>(int)$model['familia_id'],'marca_id'=>(int)$model['marca_id'],
+            'id'=>(int)$model['familia_id'],'marca_id'=>(int)$model['marca_id'],'tipo_veiculo'=>$model['tipo_veiculo'],
             'nome'=>$model['familia_nome'],'marca_nome'=>$model['marca_nome'],
         ];
         if ($model['ficha_arquivo'] || $model['ficha_url']) $documents++;

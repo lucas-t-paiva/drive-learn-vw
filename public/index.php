@@ -60,25 +60,27 @@ if ($route === 'familias' && $method === 'POST') {
 
         if ($action === 'create') {
             if (!can('families', 'create')) throw new RuntimeException('Seu perfil não permite cadastrar famílias.');
-            $name = trim((string)($_POST['nome'] ?? '')); $brandId=(int)($_POST['marca_id']??0);
+            $name = trim((string)($_POST['nome'] ?? '')); $brandId=(int)($_POST['marca_id']??0); $vehicleType=(string)($_POST['tipo_veiculo']??'');
             if ($name === '' || !$brandId) throw new RuntimeException('Informe a marca e o nome da família.');
             $brand=$pdo->prepare('SELECT id FROM marcas WHERE id=? AND ativo=1');$brand->execute([$brandId]);if(!$brand->fetchColumn())throw new RuntimeException('Selecione uma marca ativa.');
+            if(!in_array($vehicleType,['caminhao','onibus'],true))throw new RuntimeException('Selecione se a família é de caminhão ou ônibus.');
             $image = save_family_image($_FILES['imagem'] ?? []);
-            $stmt = $pdo->prepare('INSERT INTO familias(marca_id,nome, descricao, imagem, ativo) VALUES(?,?,?,?,?)');
-            $stmt->execute([$brandId,$name, trim((string)($_POST['descricao'] ?? '')), $image, (int)isset($_POST['ativo'])]);
+            $stmt = $pdo->prepare('INSERT INTO familias(marca_id,tipo_veiculo,nome, descricao, imagem, ativo) VALUES(?,?,?,?,?,?)');
+            $stmt->execute([$brandId,$vehicleType,$name, trim((string)($_POST['descricao'] ?? '')), $image, (int)isset($_POST['ativo'])]);
             flash('success', 'Família cadastrada com sucesso.');
         } elseif ($action === 'update') {
             if (!can('families', 'update')) throw new RuntimeException('Seu perfil não permite editar famílias.');
             $id = filter_var($_POST['id'] ?? null, FILTER_VALIDATE_INT);
-            $name = trim((string)($_POST['nome'] ?? ''));$brandId=(int)($_POST['marca_id']??0);
+            $name = trim((string)($_POST['nome'] ?? ''));$brandId=(int)($_POST['marca_id']??0);$vehicleType=(string)($_POST['tipo_veiculo']??'');
             if (!$id || $name === '' || !$brandId) throw new RuntimeException('Informe a marca e o nome da família.');
             $brand=$pdo->prepare('SELECT id FROM marcas WHERE id=? AND ativo=1');$brand->execute([$brandId]);if(!$brand->fetchColumn())throw new RuntimeException('Selecione uma marca ativa.');
+            if(!in_array($vehicleType,['caminhao','onibus'],true))throw new RuntimeException('Selecione se a família é de caminhão ou ônibus.');
             $find = $pdo->prepare('SELECT imagem FROM familias WHERE id=?'); $find->execute([$id]);
             $current = $find->fetch();
             if (!$current) throw new RuntimeException('Família não encontrada.');
             $image = save_family_image($_FILES['imagem'] ?? [], $current['imagem']);
-            $stmt = $pdo->prepare('UPDATE familias SET marca_id=?,nome=?, descricao=?, imagem=?, ativo=? WHERE id=?');
-            $stmt->execute([$brandId,$name, trim((string)($_POST['descricao'] ?? '')), $image, (int)isset($_POST['ativo']), $id]);
+            $stmt = $pdo->prepare('UPDATE familias SET marca_id=?,tipo_veiculo=?,nome=?, descricao=?, imagem=?, ativo=? WHERE id=?');
+            $stmt->execute([$brandId,$vehicleType,$name, trim((string)($_POST['descricao'] ?? '')), $image, (int)isset($_POST['ativo']), $id]);
             if ($image !== $current['imagem']) remove_family_image($current['imagem']);
             flash('success', 'Família atualizada com sucesso.');
         } elseif ($action === 'delete') {
@@ -432,11 +434,12 @@ if ($resource === 'brands' && database_ready()) $brandPage = load_brands_page();
 if ($resource === 'technical_catalog' && database_ready()) $technicalCatalog = load_technical_catalog_page();
 if ($resource === 'families' && database_ready()) {
     [$page, $perPage, $offset] = pagination_params();
-    $q = trim((string)($_GET['q'] ?? '')); $status = (string)($_GET['status'] ?? '');$brandFilter=(int)($_GET['marca']??0);$brandOptions=db()->query('SELECT id,nome FROM marcas WHERE ativo=1 ORDER BY nome')->fetchAll();
+    $q = trim((string)($_GET['q'] ?? '')); $status = (string)($_GET['status'] ?? '');$brandFilter=(int)($_GET['marca']??0);$typeFilter=(string)($_GET['tipo']??'');$brandOptions=db()->query('SELECT id,nome FROM marcas WHERE ativo=1 ORDER BY nome')->fetchAll();
     $where = []; $params = [];
     if ($q !== '') { $where[] = '(f.nome LIKE ? OR f.descricao LIKE ? OR ma.nome LIKE ?)'; $params[] = "%{$q}%"; $params[] = "%{$q}%"; $params[] = "%{$q}%"; }
     if (in_array($status, ['ativo','inativo'], true)) { $where[] = 'f.ativo=?'; $params[] = $status === 'ativo' ? 1 : 0; }
     if($brandFilter){$where[]='f.marca_id=?';$params[]=$brandFilter;}
+    if(in_array($typeFilter,['caminhao','onibus'],true)){$where[]='f.tipo_veiculo=?';$params[]=$typeFilter;}
     $whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
     $count = db()->prepare('SELECT COUNT(*) FROM familias f JOIN marcas ma ON ma.id=f.marca_id' . $whereSql); $count->execute($params); $totalRows = (int)$count->fetchColumn();
     $totalPages = max(1, (int)ceil($totalRows / $perPage));
@@ -446,21 +449,22 @@ if ($resource === 'families' && database_ready()) {
 }
 if ($resource === 'models' && database_ready()) {
     [$page, $perPage, $offset] = pagination_params();
-    $q = trim((string)($_GET['q'] ?? '')); $status = (string)($_GET['status'] ?? ''); $brandFilter = (int)($_GET['marca'] ?? 0); $familyFilter = (int)($_GET['familia'] ?? 0); $fichaFilter = (string)($_GET['ficha'] ?? '');
+    $q = trim((string)($_GET['q'] ?? '')); $status = (string)($_GET['status'] ?? ''); $typeFilter=(string)($_GET['tipo']??''); $brandFilter = (int)($_GET['marca'] ?? 0); $familyFilter = (int)($_GET['familia'] ?? 0); $fichaFilter = (string)($_GET['ficha'] ?? '');
     $brandOptions = db()->query('SELECT id,nome FROM marcas WHERE ativo=1 ORDER BY nome')->fetchAll();
-    $familyOptions = db()->query('SELECT f.id,f.marca_id,f.nome,ma.nome marca_nome FROM familias f JOIN marcas ma ON ma.id=f.marca_id WHERE f.ativo=1 ORDER BY ma.nome,f.nome')->fetchAll();
+    $familyOptions = db()->query('SELECT f.id,f.marca_id,f.tipo_veiculo,f.nome,ma.nome marca_nome FROM familias f JOIN marcas ma ON ma.id=f.marca_id WHERE f.ativo=1 ORDER BY ma.nome,f.nome')->fetchAll();
     $where = []; $params = [];
     if ($q !== '') { $where[] = '(m.nome LIKE ? OR m.motor LIKE ? OR m.potencia LIKE ?)'; $params[] = "%{$q}%"; $params[] = "%{$q}%"; $params[] = "%{$q}%"; }
     if (in_array($status, ['ativo','inativo'], true)) { $where[] = 'm.ativo=?'; $params[] = $status === 'ativo' ? 1 : 0; }
     if ($brandFilter > 0) { $where[] = 'f.marca_id=?'; $params[] = $brandFilter; }
     if ($familyFilter > 0) { $where[] = 'm.familia_id=?'; $params[] = $familyFilter; }
+    if(in_array($typeFilter,['caminhao','onibus'],true)){$where[]='f.tipo_veiculo=?';$params[]=$typeFilter;}
     $technicalSheetExists = "EXISTS(SELECT 1 FROM modelo_documentos mdf WHERE mdf.modelo_id=m.id AND mdf.tipo='ficha_tecnica' AND mdf.ativo=1 AND (NULLIF(TRIM(mdf.arquivo),'') IS NOT NULL OR NULLIF(TRIM(mdf.url_origem),'') IS NOT NULL))";
     if ($fichaFilter === 'com') $where[] = $technicalSheetExists;
     elseif ($fichaFilter === 'sem') $where[] = "NOT {$technicalSheetExists}";
     $whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
     $count = db()->prepare('SELECT COUNT(*) FROM modelos m JOIN familias f ON f.id=m.familia_id' . $whereSql); $count->execute($params); $totalRows = (int)$count->fetchColumn();
     $totalPages = max(1, (int)ceil($totalRows / $perPage));
-    $stmt = db()->prepare("SELECT m.*,f.nome familia_nome,ma.nome marca_nome,(SELECT COUNT(*) FROM video_modelos vm WHERE vm.modelo_id=m.id) videos,(SELECT COALESCE(SUM(fr.quantidade),0) FROM frotas fr WHERE fr.modelo_id=m.id) frota,(SELECT md.arquivo FROM modelo_documentos md WHERE md.modelo_id=m.id AND md.tipo='ficha_tecnica' AND md.ativo=1 LIMIT 1) ficha_arquivo,(SELECT md.url_origem FROM modelo_documentos md WHERE md.modelo_id=m.id AND md.tipo='ficha_tecnica' AND md.ativo=1 LIMIT 1) ficha_url,(SELECT md.arquivo FROM modelo_documentos md WHERE md.modelo_id=m.id AND md.tipo='diretriz_implementacao' AND md.ativo=1 LIMIT 1) diretriz_arquivo,(SELECT md.url_origem FROM modelo_documentos md WHERE md.modelo_id=m.id AND md.tipo='diretriz_implementacao' AND md.ativo=1 LIMIT 1) diretriz_url FROM modelos m JOIN familias f ON f.id=m.familia_id JOIN marcas ma ON ma.id=f.marca_id" . $whereSql . ' ORDER BY ma.nome,f.nome,m.nome LIMIT ? OFFSET ?');
+    $stmt = db()->prepare("SELECT m.*,f.nome familia_nome,f.tipo_veiculo familia_tipo_veiculo,ma.nome marca_nome,(SELECT COUNT(*) FROM video_modelos vm WHERE vm.modelo_id=m.id) videos,(SELECT COALESCE(SUM(fr.quantidade),0) FROM frotas fr WHERE fr.modelo_id=m.id) frota,(SELECT md.arquivo FROM modelo_documentos md WHERE md.modelo_id=m.id AND md.tipo='ficha_tecnica' AND md.ativo=1 LIMIT 1) ficha_arquivo,(SELECT md.url_origem FROM modelo_documentos md WHERE md.modelo_id=m.id AND md.tipo='ficha_tecnica' AND md.ativo=1 LIMIT 1) ficha_url,(SELECT md.arquivo FROM modelo_documentos md WHERE md.modelo_id=m.id AND md.tipo='diretriz_implementacao' AND md.ativo=1 LIMIT 1) diretriz_arquivo,(SELECT md.url_origem FROM modelo_documentos md WHERE md.modelo_id=m.id AND md.tipo='diretriz_implementacao' AND md.ativo=1 LIMIT 1) diretriz_url FROM modelos m JOIN familias f ON f.id=m.familia_id JOIN marcas ma ON ma.id=f.marca_id" . $whereSql . ' ORDER BY ma.nome,f.nome,m.nome LIMIT ? OFFSET ?');
     foreach ($params as $i => $value) $stmt->bindValue($i + 1, $value);
     $stmt->bindValue(count($params) + 1, $perPage, PDO::PARAM_INT); $stmt->bindValue(count($params) + 2, $offset, PDO::PARAM_INT); $stmt->execute(); $models = $stmt->fetchAll();
 }

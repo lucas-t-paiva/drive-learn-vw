@@ -16,9 +16,11 @@ $modelPayload=static function(array $model) use($specLabels):array {
     if(!is_array($specs))$specs=[];
     $extra=[];
     foreach($specLabels as $key=>$label){$value=$specs[$key]??null;if($value!==null&&$value!=='')$extra[$label]=(string)$value;}
+    $vehicleType=(string)($model['tipo_veiculo']??'caminhao');
+    $extra['Tipo de veículo']=$vehicleType==='onibus'?'Ônibus':'Caminhão';
     $document=$model['ficha_arquivo']?url($model['ficha_arquivo']):(string)($model['ficha_url']??'');
     return [
-        'id'=>(int)$model['id'],'marca_id'=>(int)$model['marca_id'],'marca'=>$model['marca_nome'],
+        'id'=>(int)$model['id'],'marca_id'=>(int)$model['marca_id'],'tipo'=>$vehicleType,'marca'=>$model['marca_nome'],
         'familia_id'=>(int)$model['familia_id'],'familia'=>$model['familia_nome'],'nome'=>$model['nome'],
         'descricao'=>$model['descricao'],'imagem'=>$model['imagem']?url($model['imagem']):'',
         'motor'=>$model['motor'],'potencia'=>$model['potencia'],'torque'=>$model['torque'],
@@ -42,9 +44,10 @@ $modelPayload=static function(array $model) use($specLabels):array {
     <div class="catalog-filter-copy"><div><span class="eyebrow blue">Encontre o veículo</span><h2>Filtre o catálogo</h2></div><span data-catalog-result-count><?= count($catalogModels) ?> modelo(s)</span></div>
     <form class="catalog-filters" data-catalog-filters>
         <div class="catalog-search"><i class="bi bi-search"></i><input type="search" name="q" placeholder="Buscar modelo, motor, potência ou aplicação..." autocomplete="off"></div>
+        <select name="tipo" data-catalog-type><option value="">Caminhões e ônibus</option><option value="caminhao">Caminhões</option><option value="onibus">Ônibus</option></select>
         <select name="marca" data-catalog-brand><option value="">Todas as marcas</option><?php foreach($catalogBrands as $brand): ?><option value="<?= (int)$brand['id'] ?>"><?= e($brand['nome']) ?></option><?php endforeach; ?></select>
-        <select name="familia" data-catalog-family><option value="">Todas as famílias</option><?php foreach($catalogFamilies as $family): ?><option value="<?= (int)$family['id'] ?>" data-brand="<?= (int)$family['marca_id'] ?>"><?= e($family['marca_nome'].' · '.$family['nome']) ?></option><?php endforeach; ?></select>
-        <select name="modelo" data-catalog-model><option value="">Todos os modelos</option><?php foreach($catalogModels as $model): ?><option value="<?= (int)$model['id'] ?>" data-brand="<?= (int)$model['marca_id'] ?>" data-family="<?= (int)$model['familia_id'] ?>"><?= e($model['marca_nome'].' · '.$model['nome']) ?></option><?php endforeach; ?></select>
+        <select name="familia" data-catalog-family><option value="">Todas as famílias</option><?php foreach($catalogFamilies as $family): ?><option value="<?= (int)$family['id'] ?>" data-brand="<?= (int)$family['marca_id'] ?>" data-type="<?= e($family['tipo_veiculo']) ?>"><?= e($family['marca_nome'].' · '.$family['nome']) ?></option><?php endforeach; ?></select>
+        <select name="modelo" data-catalog-model><option value="">Todos os modelos</option><?php foreach($catalogModels as $model): ?><option value="<?= (int)$model['id'] ?>" data-brand="<?= (int)$model['marca_id'] ?>" data-type="<?= e($model['tipo_veiculo']) ?>" data-family="<?= (int)$model['familia_id'] ?>"><?= e($model['marca_nome'].' · '.$model['nome']) ?></option><?php endforeach; ?></select>
         <button class="btn secondary catalog-clear" type="button" data-catalog-clear><i class="bi bi-x-lg"></i><span>Limpar</span></button>
     </form>
 </section>
@@ -57,7 +60,7 @@ $modelPayload=static function(array $model) use($specLabels):array {
 
 <section class="technical-vehicle-grid" data-catalog-grid>
 <?php foreach($catalogModels as $model): $payload=$modelPayload($model); $wheelbase=$payload['extras']['Entre-eixos']??'Não informado'; ?>
-    <article class="technical-vehicle-card" data-catalog-card data-brand="<?= (int)$model['marca_id'] ?>" data-family="<?= (int)$model['familia_id'] ?>" data-model-id="<?= (int)$model['id'] ?>" data-model="<?= e(json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)) ?>">
+    <article class="technical-vehicle-card" data-catalog-card data-type="<?= e($model['tipo_veiculo']) ?>" data-brand="<?= (int)$model['marca_id'] ?>" data-family="<?= (int)$model['familia_id'] ?>" data-model-id="<?= (int)$model['id'] ?>" data-model="<?= e(json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)) ?>">
         <div class="technical-vehicle-media">
             <span class="vehicle-brand-pill"><?= e($model['marca_nome']) ?></span>
             <label class="compare-toggle"><input type="checkbox" data-catalog-select value="<?= (int)$model['id'] ?>"><span><i class="bi bi-plus-lg"></i><b>Comparar</b></span></label>

@@ -33,6 +33,7 @@ require_once __DIR__ . '/../app/dashboard_module.php';
 require_once __DIR__ . '/../app/brands_module.php';
 require_once __DIR__ . '/../app/technical_catalog_module.php';
 require_once __DIR__ . '/../app/notifications_module.php';
+require_once __DIR__ . '/../app/model_spreadsheet_module.php';
 
 if ($route === 'empresa-ativa' && $method === 'POST') {
     verify_csrf();
@@ -48,6 +49,7 @@ handle_access_post($route, $method);
 handle_fleet_post($route, $method);
 handle_library_event($route, $method);
 handle_brand_post($route, $method);
+handle_model_spreadsheet_request($route, $method);
 
 if ($route === 'familias' && $method === 'POST') {
     verify_csrf();
@@ -138,7 +140,7 @@ if ($route === 'modelos' && $method === 'POST') {
                 $stmt=$pdo->prepare("UPDATE modelos SET familia_id=? WHERE id IN ({$marks})");$stmt->execute(array_merge([$familyId],$ids));
             }elseif($bulkOperation==='technical'){
                 $field=(string)($_POST['bulk_field']??'');$value=trim((string)($_POST['bulk_value']??''));
-                $columns=['descricao'=>'descricao','motor'=>'motor','potencia'=>'potencia','torque'=>'torque','transmissao'=>'transmissao','pbt'=>'pbt'];
+                $columns=['descricao'=>'descricao','motor'=>'motor','potencia'=>'potencia','torque'=>'torque','transmissao'=>'transmissao','pbt'=>'pbt','pbtc'=>'pbtc','relacao_reducao'=>'relacao_reducao'];
                 if(isset($modelSpecificationFields[$field])){
                     $jsonPath = '$.' . $field;
                     $stmt=$pdo->prepare("UPDATE modelos SET especificacoes=JSON_SET(IF(JSON_VALID(especificacoes),especificacoes,JSON_OBJECT()),'{$jsonPath}',?) WHERE id IN ({$marks})");
@@ -185,15 +187,15 @@ if ($route === 'modelos' && $method === 'POST') {
             foreach($modelSpecificationFields as $field=>$label)$specificationData[$field]=trim((string)($_POST[$field]??''));
             $specifications=json_encode($specificationData,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
             if($specifications===false)throw new RuntimeException('Não foi possível preparar as especificações técnicas.');
-            $values = [$familyId, $name, slugify($name), trim((string)($_POST['descricao'] ?? '')), $image, trim((string)($_POST['motor'] ?? '')), trim((string)($_POST['potencia'] ?? '')), trim((string)($_POST['torque'] ?? '')), trim((string)($_POST['transmissao'] ?? '')), trim((string)($_POST['pbt'] ?? '')), $specifications,(int)isset($_POST['ativo'])];
+            $values = [$familyId, $name, slugify($name), trim((string)($_POST['descricao'] ?? '')), $image, trim((string)($_POST['motor'] ?? '')), trim((string)($_POST['potencia'] ?? '')), trim((string)($_POST['torque'] ?? '')), trim((string)($_POST['transmissao'] ?? '')), trim((string)($_POST['pbt'] ?? '')), trim((string)($_POST['pbtc'] ?? '')), trim((string)($_POST['relacao_reducao'] ?? '')), $specifications,(int)isset($_POST['ativo'])];
             if ($action === 'create') {
-                $stmt = $pdo->prepare('INSERT INTO modelos(familia_id,nome,slug,descricao,imagem,motor,potencia,torque,transmissao,pbt,especificacoes,ativo) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)');
+                $stmt = $pdo->prepare('INSERT INTO modelos(familia_id,nome,slug,descricao,imagem,motor,potencia,torque,transmissao,pbt,pbtc,relacao_reducao,especificacoes,ativo) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
                 $stmt->execute($values);
                 $id = (int)$pdo->lastInsertId();
                 flash('success', 'Modelo cadastrado com sucesso.');
             } else {
                 $values[] = $id;
-                $stmt = $pdo->prepare("UPDATE modelos SET familia_id=?,nome=?,slug=?,descricao=?,imagem=?,motor=?,potencia=?,torque=?,transmissao=?,pbt=?,especificacoes=?,ativo=? WHERE id=?");
+                $stmt = $pdo->prepare("UPDATE modelos SET familia_id=?,nome=?,slug=?,descricao=?,imagem=?,motor=?,potencia=?,torque=?,transmissao=?,pbt=?,pbtc=?,relacao_reducao=?,especificacoes=?,ativo=? WHERE id=?");
                 $stmt->execute($values);
                 if ($image !== $current['imagem']) remove_model_image_if_unused($current['imagem']);
                 flash('success', 'Modelo atualizado com sucesso.');

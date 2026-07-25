@@ -22,7 +22,8 @@ $modelPayload=static function(array $model) use($specLabels):array {
         'familia_id'=>(int)$model['familia_id'],'familia'=>$model['familia_nome'],'nome'=>$model['nome'],
         'descricao'=>$model['descricao'],'imagem'=>$model['imagem']?url($model['imagem']):'',
         'motor'=>$model['motor'],'potencia'=>$model['potencia'],'torque'=>$model['torque'],
-        'transmissao'=>$model['transmissao'],'pbt'=>$model['pbt'],'extras'=>$extra,
+        'transmissao'=>$model['transmissao'],'pbt'=>$model['pbt'],'pbtc'=>$model['pbtc']??'',
+        'relacao_reducao'=>$model['relacao_reducao']??'','extras'=>$extra,
         'documento'=>$document,'fonte'=>$model['ficha_fonte']?:($specs['fonte_oficial']??$model['ficha_url']??''),
         'videos'=>(int)$model['videos_publicados'],
     ];
@@ -70,7 +71,8 @@ $modelPayload=static function(array $model) use($specLabels):array {
                 <div><dt>Motor</dt><dd><?= e($model['motor']?:'Não informado') ?></dd></div>
                 <div><dt>Potência</dt><dd><?= e($model['potencia']?:'Não informada') ?></dd></div>
                 <div><dt>Torque</dt><dd><?= e($model['torque']?:'Não informado') ?></dd></div>
-                <div><dt>PBT / capacidade</dt><dd><?= e($model['pbt']?:'Não informado') ?></dd></div>
+                <div><dt>PBT</dt><dd><?= e($model['pbt']?:'Não informado') ?></dd></div>
+                <div><dt>PBTC</dt><dd><?= e(($model['pbtc']??'')?:'Não informado') ?></dd></div>
                 <div class="vehicle-wheelbase"><dt>Entre-eixos</dt><dd><?= e($wheelbase) ?></dd></div>
             </dl>
             <div class="technical-vehicle-meta"><span><i class="bi bi-play-circle"></i> <?= (int)$model['videos_publicados'] ?> treinamento(s)</span><span class="<?= ($model['ficha_arquivo']||$model['ficha_url'])?'has-document':'' ?>"><i class="bi bi-file-earmark-check"></i> <?= ($model['ficha_arquivo']||$model['ficha_url'])?'Ficha disponível':'Sem ficha externa' ?></span></div>

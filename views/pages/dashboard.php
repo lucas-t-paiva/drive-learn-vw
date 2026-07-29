@@ -32,7 +32,32 @@ $today=$weekdays[(int)date('w')].', '.date('j').' de '.$months[(int)date('n')-1]
 </div>
 
 <div class="section-heading fleet-heading"><div><h2>Veículos do seu escopo</h2><p>Modelos cadastrados nas frotas e seus treinamentos compatíveis.</p></div><a href="<?= url('frota') ?>">Ver frota completa <i class="bi bi-arrow-right"></i></a></div>
-<section class="family-grid product-grid dashboard-vehicle-grid">
+<section class="technical-vehicle-grid dashboard-vehicle-grid">
 <?php if(!$dashboardModels): ?><article class="empty-fleet-card"><i class="bi bi-truck"></i><div><h3>Nenhuma frota cadastrada</h3><p>Adicione os modelos da empresa para liberar treinamentos compatíveis e indicadores de frota.</p><?php if(can('fleet','create')): ?><a class="btn primary" href="<?= url('frota') ?>">Cadastrar frota</a><?php endif; ?></div></article><?php endif; ?>
-<?php foreach ($dashboardModels as $model): ?><article class="family-card product-card"><div class="product-image"><?php if($model['imagem']): ?><img src="<?= url($model['imagem']) ?>" alt="<?= e($model['nome']) ?>"><?php else: ?><i class="bi bi-truck-front"></i><?php endif; ?><span class="product-family"><?= e($model['familia_nome']) ?></span></div><div class="family-body"><h3><?= e($model['nome']) ?></h3><div class="product-specs"><span><small>Fabricante / Motor</small><strong><?= e($model['motor'] ?: 'Não informado') ?></strong></span><span><small>Potência líquida máxima</small><strong><?= e($model['potencia'] ?: 'Não informada') ?></strong></span><span><small>Torque líquido máximo</small><strong><?= e($model['torque'] ?: 'Não informado') ?></strong></span><span><small>PBT / PBTC homologado</small><strong><?= e(implode(' / ',array_filter([$model['pbt']??'',$model['pbtc']??''])) ?: 'Não informado') ?></strong></span></div><div class="card-meta"><span><strong><?= (int)$model['total_veiculos'] ?></strong> veículo(s)</span><span><strong><?= (int)$model['total_videos'] ?></strong> vídeo(s)</span></div><div class="product-card-links"><a class="card-link" href="<?= url('biblioteca?modelo='.(int)$model['id']) ?>">Treinamentos <i class="bi bi-arrow-right"></i></a><?php if($model['ficha_arquivo']): ?><a class="spec-link" href="<?= url($model['ficha_arquivo']) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Ficha técnica</a><?php endif; ?></div></div></article><?php endforeach; ?>
+<?php foreach ($dashboardModels as $model): $technicalDocument=$model['ficha_arquivo']?url($model['ficha_arquivo']):($model['ficha_url']??''); ?>
+<article class="technical-vehicle-card dashboard-vehicle-card">
+    <div class="technical-vehicle-media">
+        <span class="vehicle-brand-pill"><?= e($model['marca_nome']??'Volkswagen Caminhões e Ônibus') ?></span>
+        <?php if($model['imagem']): ?><img src="<?= url($model['imagem']) ?>" alt="<?= e(($model['marca_nome']??'').' '.$model['nome']) ?>" loading="lazy"><?php else: ?><span class="catalog-image-placeholder"><i class="bi bi-truck-front"></i></span><?php endif; ?>
+    </div>
+    <div class="technical-vehicle-body">
+        <span class="vehicle-family"><?= e($model['familia_nome']) ?></span>
+        <h2><?= e($model['nome']) ?></h2>
+        <p><?= e($model['descricao']?:'Modelo cadastrado na frota do escopo atual.') ?></p>
+        <dl class="vehicle-spec-preview">
+            <div><dt>Motor</dt><dd title="<?= e($model['motor']?:'Não informado') ?>"><?= e($model['motor']?:'Não informado') ?></dd></div>
+            <div><dt>Potência</dt><dd title="<?= e($model['potencia']?:'Não informada') ?>"><?= e($model['potencia']?:'Não informada') ?></dd></div>
+            <div><dt>Torque</dt><dd title="<?= e($model['torque']?:'Não informado') ?>"><?= e($model['torque']?:'Não informado') ?></dd></div>
+            <div><dt>PBT</dt><dd><?= e($model['pbt']?:'Não informado') ?></dd></div>
+            <div><dt>PBTC</dt><dd><?= e(($model['pbtc']??'')?:'Não informado') ?></dd></div>
+            <div class="vehicle-wheelbase"><dt>Entre-eixos</dt><dd><?= e(($model['entre_eixos']??'')?:'Não informado') ?></dd></div>
+        </dl>
+        <div class="technical-vehicle-meta"><span><i class="bi bi-truck"></i> <?= (int)$model['total_veiculos'] ?> veículo(s)</span><span><i class="bi bi-play-circle"></i> <?= (int)$model['total_videos'] ?> treinamento(s)</span></div>
+        <div class="dashboard-vehicle-actions">
+            <a class="catalog-spec-button" href="<?= url('biblioteca?modelo='.(int)$model['id']) ?>"><i class="bi bi-play-circle"></i> Ver treinamentos <i class="bi bi-arrow-right"></i></a>
+            <?php if($technicalDocument): ?><a class="dashboard-document-link" href="<?= e($technicalDocument) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf"></i> Especificações técnicas</a><?php endif; ?>
+        </div>
+    </div>
+</article>
+<?php endforeach; ?>
 </section>

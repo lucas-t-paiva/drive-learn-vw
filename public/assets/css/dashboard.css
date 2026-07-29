@@ -1,4 +1,3 @@
-.product-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 .dashboard-metrics{grid-template-columns:repeat(5,minmax(0,1fr))}.metric-icon.navy{background:#e8eef7;color:var(--navy)}.dashboard-metrics .metric{padding:18px}.dashboard-metrics .metric strong{font-size:1.38rem}.overview-learning{margin-bottom:34px}.overview-learning .section-heading.compact{margin-top:8px}.real-continue .video-thumb{background-image:linear-gradient(90deg,rgba(0,20,45,.18),rgba(0,20,45,.55)),var(--continue-image);background-size:cover;background-position:center}.continue-link{display:inline-flex;align-items:center;gap:6px;margin-top:10px;font-size:.7rem;font-weight:800}.dashboard-empty{justify-content:center}.empty-round{display:grid;place-items:center;flex:0 0 72px;width:72px;height:72px;border-radius:50%;background:#eaf5fb;color:var(--blue);font-size:1.8rem}.donut{background:conic-gradient(var(--blue) var(--dashboard-progress,0%),#e8edf1 0)}.fleet-heading{margin-top:8px}.product-card-links{display:flex;align-items:center;justify-content:space-between;gap:12px}.spec-link{display:inline-flex;align-items:center;gap:5px;font-size:.68rem;font-weight:800;color:#a43838}.dashboard-vehicle-grid{margin-bottom:10px}
 .product-card{display:flex;flex-direction:column}
 .product-image{height:205px;background:linear-gradient(180deg,#fff,#f5f8fa);position:relative;display:grid;place-items:center;padding:20px}
@@ -12,7 +11,15 @@
 .product-specs small{font-size:.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .product-specs strong{font-size:.69rem;line-height:1.4}
 .product-card .card-meta{margin-top:auto}
-@media(max-width:1350px){.product-grid{grid-template-columns:repeat(2,1fr)}.dashboard-metrics{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:1350px){.dashboard-metrics{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:900px){.dashboard-metrics{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:700px){.product-grid{grid-template-columns:1fr}.product-image{height:230px}}
+@media(max-width:700px){.product-image{height:230px}}
 @media(max-width:520px){.dashboard-metrics{grid-template-columns:1fr}.product-card-links{align-items:flex-start;flex-direction:column}}
+
+.dashboard-vehicle-grid{margin-bottom:10px}
+.dashboard-vehicle-card .technical-vehicle-meta{font-size:.59rem}
+.dashboard-vehicle-actions{display:grid;gap:9px}
+.dashboard-vehicle-actions .catalog-spec-button{text-decoration:none}
+.dashboard-document-link{display:flex;align-items:center;justify-content:center;gap:6px;color:#a43838;font-size:.64rem;font-weight:800}
+.dashboard-document-link:hover{color:#7f2727}
+.dashboard-vehicle-grid>.empty-fleet-card{grid-column:1/-1}

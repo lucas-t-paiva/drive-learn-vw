@@ -45,7 +45,8 @@
 .video-form-dialog .selection-grid span{
     height:100%;
 }
-.video-form-dialog .selection-grid .family-filtered{
+.video-form-dialog .selection-grid .family-filtered,
+.video-form-dialog .selection-grid .brand-filtered{
     display:none!important;
 }
 .video-form-dialog .selection-actions{

@@ -113,6 +113,22 @@ function handle_access_post(string $route, string $method): void
                 if ($password !== '' && strlen($password) < 8) throw new RuntimeException('A nova senha deve ter pelo menos 8 caracteres.');
                 $allowedCompanies = manageable_company_ids();
                 $companyIds = array_values(array_unique(array_filter(array_map('intval',(array)($_POST['empresa_ids'] ?? [])))));
+                $brandIds = array_values(array_unique(array_filter(array_map('intval',(array)($_POST['marca_ids'] ?? [])))));
+                if ($selfUpdate) {
+                    $currentBrands=$pdo->prepare('SELECT marca_id FROM usuario_marcas WHERE usuario_id=?');
+                    $currentBrands->execute([$id]);
+                    $brandIds=array_map('intval',$currentBrands->fetchAll(PDO::FETCH_COLUMN));
+                }
+                if (!$brandIds) throw new RuntimeException('Vincule o usuário a pelo menos uma marca.');
+                $brandMarks=implode(',',array_fill(0,count($brandIds),'?'));
+                $validBrands=$pdo->prepare("SELECT id FROM marcas WHERE ativo=1 AND id IN ({$brandMarks})");
+                $validBrands->execute($brandIds);
+                if(count($validBrands->fetchAll())!==count($brandIds)) throw new RuntimeException('Uma das marcas selecionadas está inativa ou não existe.');
+                if(!$selfUpdate&&!is_master()){
+                    $allowedBrands=$pdo->prepare("SELECT marca_id FROM usuario_marcas WHERE usuario_id=? AND marca_id IN ({$brandMarks})");
+                    $allowedBrands->execute(array_merge([(int)(user()['id']??0)],$brandIds));
+                    if(count($allowedBrands->fetchAll())!==count($brandIds)) throw new RuntimeException('Uma das marcas selecionadas está fora do seu acesso.');
+                }
                 if ($clientContext) {
                     $activeCompanyId = active_company_id() ?? 0;
                     if (!$activeCompanyId || !in_array($activeCompanyId,$allowedCompanies,true)) throw new RuntimeException('A empresa cliente ativa não está disponível para este cadastro.');
@@ -163,6 +179,9 @@ function handle_access_post(string $route, string $method): void
                 $memberStmt=$pdo->prepare('INSERT INTO usuario_empresas(usuario_id,empresa_id,perfil_id,principal,administrador,ativo,cadastrado_por) VALUES(?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE perfil_id=VALUES(perfil_id),principal=VALUES(principal),administrador=VALUES(administrador),ativo=VALUES(ativo),cadastrado_por=VALUES(cadastrado_por)');
                 foreach($memberships as $index=>$membership)$memberStmt->execute([$id,$membership[0],$membership[1],(!empty($existing)&&$action==='create')?0:($index===0?1:0),in_array($membership[2],['administrador','admin-empresa'],true)?1:0,1,user()['id']??null]);
                 if (!(!empty($existing) && $action === 'create')) $pdo->prepare('UPDATE usuarios SET perfil_id=? WHERE id=?')->execute([(int)$memberships[0][1],$id]);
+                if (!$selfUpdate && !(!empty($existing) && $action === 'create')) $pdo->prepare('DELETE FROM usuario_marcas WHERE usuario_id=?')->execute([$id]);
+                $brandLink=$pdo->prepare('INSERT IGNORE INTO usuario_marcas(usuario_id,marca_id) VALUES(?,?)');
+                foreach($brandIds as $brandId)$brandLink->execute([$id,$brandId]);
                 $pdo->commit();
                 if ($pendingImage && $previousImage && $pendingImage !== $previousImage) remove_module_image($imageModule, $previousImage);
                 flash('success', !empty($existing) ? 'O e-mail já existia e recebeu os novos vínculos de empresa.' : 'Usuário salvo com sucesso.');
@@ -220,9 +239,11 @@ function load_access_page(string $resource): array
         $sql='SELECT e.*,c.nome cidade_nome,es.id estado_id,es.sigla uf,ep.nome_fantasia empresa_pai_nome,(SELECT COUNT(*) FROM usuario_empresas ue WHERE ue.empresa_id=e.id AND ue.ativo=1) usuarios,(SELECT COUNT(*) FROM empresa_clientes ec WHERE '.($resource==='clients'?'ec.cliente_id':'ec.empresa_vw_id').'=e.id AND ec.ativo=1) vinculos,(SELECT GROUP_CONCAT(ec.empresa_vw_id) FROM empresa_clientes ec WHERE ec.cliente_id=e.id AND ec.ativo=1) parceiro_ids FROM empresas e LEFT JOIN cidades c ON c.id=e.cidade_id LEFT JOIN estados es ON es.id=c.estado_id LEFT JOIN empresas ep ON ep.id=e.empresa_pai_id'.$whereSql.' ORDER BY e.nome_fantasia LIMIT ? OFFSET ?';$stmt=$pdo->prepare($sql);foreach($params as $i=>$value)$stmt->bindValue($i+1,$value);$stmt->bindValue(count($params)+1,$perPage,PDO::PARAM_INT);$stmt->bindValue(count($params)+2,$offset,PDO::PARAM_INT);$stmt->execute();
         $data+=['companies'=>$stmt->fetchAll(),'q'=>$q,'status'=>$status,'page'=>$page,'perPage'=>$perPage,'offset'=>$offset,'totalRows'=>$total,'totalPages'=>$pages,'parentOptions'=>$pdo->query("SELECT id,nome_fantasia FROM empresas WHERE tipo IN('vwco','concessionaria') AND ativo=1 ORDER BY nome_fantasia")->fetchAll(),'partnerOptions'=>$pdo->query("SELECT id,nome_fantasia,tipo FROM empresas WHERE tipo IN('vwco','concessionaria') AND ativo=1 ORDER BY nome_fantasia")->fetchAll()];
     }elseif($resource==='users'){
-        $allowed=manageable_company_ids();if(!$allowed)$allowed=[0];$marks=implode(',',array_fill(0,count($allowed),'?'));$stmt=$pdo->prepare("SELECT DISTINCT u.*,(SELECT GROUP_CONCAT(CONCAT(e.nome_fantasia,'|',p.nome) ORDER BY ue.principal DESC,e.nome_fantasia SEPARATOR ';;') FROM usuario_empresas ue JOIN empresas e ON e.id=ue.empresa_id JOIN perfis p ON p.id=ue.perfil_id WHERE ue.usuario_id=u.id AND ue.ativo=1) vinculos,(SELECT GROUP_CONCAT(CONCAT(ue.empresa_id,':',ue.perfil_id) SEPARATOR ',') FROM usuario_empresas ue WHERE ue.usuario_id=u.id AND ue.ativo=1) vinculo_ids FROM usuarios u JOIN usuario_empresas ux ON ux.usuario_id=u.id WHERE ux.empresa_id IN ({$marks}) ORDER BY u.nome");$stmt->execute($allowed);
+        $allowed=manageable_company_ids();if(!$allowed)$allowed=[0];$marks=implode(',',array_fill(0,count($allowed),'?'));$stmt=$pdo->prepare("SELECT DISTINCT u.*,(SELECT GROUP_CONCAT(CONCAT(e.nome_fantasia,'|',p.nome) ORDER BY ue.principal DESC,e.nome_fantasia SEPARATOR ';;') FROM usuario_empresas ue JOIN empresas e ON e.id=ue.empresa_id JOIN perfis p ON p.id=ue.perfil_id WHERE ue.usuario_id=u.id AND ue.ativo=1) vinculos,(SELECT GROUP_CONCAT(CONCAT(ue.empresa_id,':',ue.perfil_id) SEPARATOR ',') FROM usuario_empresas ue WHERE ue.usuario_id=u.id AND ue.ativo=1) vinculo_ids,(SELECT GROUP_CONCAT(um.marca_id ORDER BY um.marca_id) FROM usuario_marcas um WHERE um.usuario_id=u.id) marca_ids,(SELECT GROUP_CONCAT(ma.nome ORDER BY ma.nome SEPARATOR ', ') FROM usuario_marcas um JOIN marcas ma ON ma.id=um.marca_id WHERE um.usuario_id=u.id) marcas_nomes FROM usuarios u JOIN usuario_empresas ux ON ux.usuario_id=u.id WHERE ux.empresa_id IN ({$marks}) ORDER BY u.nome");$stmt->execute($allowed);
         $companyStmt=$pdo->prepare("SELECT id,nome_fantasia,tipo FROM empresas WHERE id IN ({$marks}) AND ativo=1 ORDER BY nome_fantasia");$companyStmt->execute($allowed);$maxLevel=is_master()?100:(int)(user()['role_level']??0);$clientContext=!is_master()&&(user()['active_company_type']??'')==='cliente';$profileRestriction=$clientContext?' AND slug IN("cliente","colaborador-cliente")':(is_master()?'':' AND slug<>"administrador"');$profileStmt=$pdo->prepare('SELECT id,empresa_id,nome,slug,nivel,tipo_empresa FROM perfis WHERE ativo=1 AND nivel<=?'.$profileRestriction.' ORDER BY nivel DESC,nome');$profileStmt->execute([$maxLevel]);
-        $data+=['users'=>$stmt->fetchAll(),'companyOptions'=>$companyStmt->fetchAll(),'profileOptions'=>$profileStmt->fetchAll()];
+        if(is_master())$brandOptions=$pdo->query('SELECT id,nome FROM marcas WHERE ativo=1 ORDER BY nome')->fetchAll();
+        else{$brandStmt=$pdo->prepare('SELECT ma.id,ma.nome FROM marcas ma JOIN usuario_marcas um ON um.marca_id=ma.id WHERE um.usuario_id=? AND ma.ativo=1 ORDER BY ma.nome');$brandStmt->execute([(int)(user()['id']??0)]);$brandOptions=$brandStmt->fetchAll();}
+        $data+=['users'=>$stmt->fetchAll(),'companyOptions'=>$companyStmt->fetchAll(),'profileOptions'=>$profileStmt->fetchAll(),'brandOptions'=>$brandOptions];
     }elseif($resource==='permissions'){
         $where=is_master()?'':' WHERE (p.empresa_id=? OR p.empresa_id IS NULL) AND p.slug<>"administrador"';$stmt=$pdo->prepare('SELECT p.*,(SELECT COUNT(*) FROM usuario_empresas ue WHERE ue.perfil_id=p.id AND ue.ativo=1) usuarios,(SELECT GROUP_CONCAT(pp.permissao_id) FROM perfil_permissoes pp WHERE pp.perfil_id=p.id AND pp.permitido=1) permission_ids,e.nome_fantasia empresa_nome FROM perfis p LEFT JOIN empresas e ON e.id=p.empresa_id'.$where.' ORDER BY p.nivel DESC,p.nome');$stmt->execute(is_master()?[]:[active_company_id()]);
         $permissionRows=$pdo->query('SELECT id,recurso,acao,descricao FROM permissoes ORDER BY recurso,FIELD(acao,"view","create","update","delete")')->fetchAll();$groups=[];foreach($permissionRows as $permission)$groups[$permission['recurso']][]=$permission;

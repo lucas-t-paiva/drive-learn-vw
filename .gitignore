@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 !.env.mail.example
+!.env.ai.example
 /config/database.production.php
 
 # Sessoes e arquivos gerados em execucao

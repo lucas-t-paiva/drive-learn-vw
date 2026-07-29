@@ -46,6 +46,24 @@ function load_header_notifications(): array
             }
         }
 
+        if (can('service_desk','view')) {
+            try {
+                if (($current['active_company_type'] ?? '') === 'cliente') {
+                    $stmt=$pdo->prepare("SELECT id,protocolo,titulo FROM service_reports WHERE empresa_cliente_id=? AND usuario_id=? AND status='finalizado' ORDER BY finalizado_em DESC LIMIT 5");
+                    $stmt->execute([active_company_id()?:0,(int)$current['id']]);
+                    foreach($stmt->fetchAll() as $report)$items[]=notification_item('service_report_final_'.$report['id'],'Relato '.$report['protocolo'].' finalizado','A solução foi registrada. Abra o relato para conferir e avaliar.','service-desk','bi-check2-circle','success');
+                } elseif (service_desk_internal_user()) {
+                    $params=[];$scope=service_desk_access_clause($params);
+                    $stmt=$pdo->prepare("SELECT COUNT(*) FROM service_reports sr WHERE {$scope} AND sr.status='novo'");$stmt->execute($params);$newReports=(int)$stmt->fetchColumn();
+                    if($newReports>0)$items[]=notification_item('service_reports_new_'.$newReports,"{$newReports} novo(s) relato(s)",'A triagem inicial está aguardando atendimento.','service-desk','bi-headset','warning');
+                    $stmt=$pdo->prepare("SELECT COUNT(*) FROM service_reports sr WHERE {$scope} AND sr.status NOT IN ('finalizado','cancelado') AND sr.sla_resolucao_em<NOW()");$stmt->execute($params);$overdue=(int)$stmt->fetchColumn();
+                    if($overdue>0)$items[]=notification_item('service_reports_sla_'.$overdue,"{$overdue} chamado(s) com SLA vencido",'Priorize os relatos que ultrapassaram o prazo de solução.','service-desk','bi-alarm','warning');
+                }
+            } catch (Throwable) {
+                // O restante das notificações continua disponível antes da migração do Service Desk.
+            }
+        }
+
         $keys=array_column($items,'key'); $read=[];
         if($keys){$marks=implode(',',array_fill(0,count($keys),'?'));$stmt=$pdo->prepare("SELECT notification_key FROM notificacoes_lidas WHERE usuario_id=? AND notification_key IN ({$marks})");$stmt->execute(array_merge([(int)$current['id']],$keys));$read=array_flip($stmt->fetchAll(PDO::FETCH_COLUMN));}
         foreach($items as &$item)$item['read']=isset($read[$item['key']]); unset($item);

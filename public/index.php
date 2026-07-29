@@ -38,6 +38,13 @@ require_once __DIR__ . '/../app/brands_module.php';
 require_once __DIR__ . '/../app/technical_catalog_module.php';
 require_once __DIR__ . '/../app/notifications_module.php';
 require_once __DIR__ . '/../app/model_spreadsheet_module.php';
+require_once __DIR__ . '/../app/sectors_module.php';
+require_once __DIR__ . '/../app/service_desk_module.php';
+require_once __DIR__ . '/../app/report_taxonomy_module.php';
+require_once __DIR__ . '/../app/assistant_settings_module.php';
+require_once __DIR__ . '/../app/assistant_module.php';
+
+handle_assistant_event($route,$method);
 
 if ($route === 'empresa-ativa' && $method === 'POST') {
     verify_csrf();
@@ -54,6 +61,10 @@ handle_fleet_post($route, $method);
 handle_library_event($route, $method);
 handle_brand_post($route, $method);
 handle_model_spreadsheet_request($route, $method);
+handle_sectors_post($route,$method);
+handle_service_desk_post($route, $method);
+handle_report_taxonomy_post($route,$method);
+handle_assistant_settings_post($route,$method);
 
 if ($route === 'familias' && $method === 'POST') {
     verify_csrf();
@@ -320,6 +331,7 @@ if ($route === 'videos' && $method === 'POST') {
             if(!can('videos',$permission)) throw new RuntimeException('Seu perfil não permite salvar vídeos.');
             $id=$action==='update'?filter_var($_POST['id']??null,FILTER_VALIDATE_INT):null;
             $title=trim((string)($_POST['titulo']??''));
+            $transcript=trim((string)($_POST['transcricao']??''));
             $categoryId=filter_var($_POST['categoria_id']??null,FILTER_VALIDATE_INT);
             $subcategoryId=filter_var($_POST['subcategoria_id']??null,FILTER_VALIDATE_INT)?:null;
             $type=(string)($_POST['tipo']??'upload');
@@ -333,9 +345,9 @@ if ($route === 'videos' && $method === 'POST') {
                 $subcategory=$pdo->prepare('SELECT id FROM subcategorias WHERE id=? AND categoria_id=? AND ativo=1'); $subcategory->execute([$subcategoryId,$categoryId]);
                 if(!$subcategory->fetch()) throw new RuntimeException('A subcategoria selecionada não pertence à categoria informada.');
             }
-            $current=['arquivo_url'=>null,'thumbnail'=>null,'tipo'=>null,'publicado_em'=>null];
+            $current=['arquivo_url'=>null,'thumbnail'=>null,'tipo'=>null,'publicado_em'=>null,'transcricao'=>null];
             if($action==='update'){
-                $find=$pdo->prepare('SELECT arquivo_url,thumbnail,tipo,publicado_em FROM videos WHERE id=?'); $find->execute([$id]); $current=$find->fetch();
+                $find=$pdo->prepare('SELECT arquivo_url,thumbnail,tipo,publicado_em,transcricao FROM videos WHERE id=?'); $find->execute([$id]); $current=$find->fetch();
                 if(!$current) throw new RuntimeException('Vídeo não encontrado.');
             }
 
@@ -359,31 +371,46 @@ if ($route === 'videos' && $method === 'POST') {
             if($type==='youtube'&&!$thumbnail) $thumbnail='https://img.youtube.com/vi/'.$youtubeId.'/hqdefault.jpg';
             if($type==='upload'&&$thumbnail&&str_starts_with($thumbnail,'https://img.youtube.com/')) $thumbnail=null;
 
+            $brandIds=array_values(array_unique(array_filter(array_map('intval',(array)($_POST['marcas']??[])))));
             $familyIds=array_values(array_unique(array_filter(array_map('intval',(array)($_POST['familias']??[])))));
             $modelIds=array_values(array_unique(array_filter(array_map('intval',(array)($_POST['modelos']??[])))));
+            if(!$brandIds) throw new RuntimeException('Selecione pelo menos uma marca para o vídeo.');
+            $marks=implode(',',array_fill(0,count($brandIds),'?')); $valid=$pdo->prepare("SELECT id FROM marcas WHERE ativo=1 AND id IN ({$marks})"); $valid->execute($brandIds);
+            if(count($valid->fetchAll())!==count($brandIds)) throw new RuntimeException('Uma das marcas selecionadas está inativa ou não existe.');
+            if(!is_master()){
+                $allowedBrands=$pdo->prepare("SELECT marca_id FROM usuario_marcas WHERE usuario_id=? AND marca_id IN ({$marks})");
+                $allowedBrands->execute(array_merge([(int)(user()['id']??0)],$brandIds));
+                if(count($allowedBrands->fetchAll())!==count($brandIds)) throw new RuntimeException('Uma das marcas selecionadas está fora do seu acesso.');
+            }
             if($familyIds){
-                $marks=implode(',',array_fill(0,count($familyIds),'?')); $valid=$pdo->prepare("SELECT id FROM familias WHERE ativo=1 AND id IN ({$marks})"); $valid->execute($familyIds);
-                if(count($valid->fetchAll())!==count($familyIds)) throw new RuntimeException('Uma das famílias selecionadas está inativa ou não existe.');
+                $marks=implode(',',array_fill(0,count($familyIds),'?')); $valid=$pdo->prepare("SELECT id,marca_id FROM familias WHERE ativo=1 AND id IN ({$marks})"); $valid->execute($familyIds); $validFamilies=$valid->fetchAll();
+                if(count($validFamilies)!==count($familyIds)) throw new RuntimeException('Uma das famílias selecionadas está inativa ou não existe.');
+                foreach($validFamilies as $validFamily) if(!in_array((int)$validFamily['marca_id'],$brandIds,true)) throw new RuntimeException('Uma das famílias não pertence às marcas selecionadas.');
             }
             if($modelIds){
-                $marks=implode(',',array_fill(0,count($modelIds),'?')); $valid=$pdo->prepare("SELECT id,familia_id FROM modelos WHERE ativo=1 AND id IN ({$marks})"); $valid->execute($modelIds); $validModels=$valid->fetchAll();
+                $marks=implode(',',array_fill(0,count($modelIds),'?')); $valid=$pdo->prepare("SELECT m.id,m.familia_id,f.marca_id FROM modelos m JOIN familias f ON f.id=m.familia_id WHERE m.ativo=1 AND f.ativo=1 AND m.id IN ({$marks})"); $valid->execute($modelIds); $validModels=$valid->fetchAll();
                 if(count($validModels)!==count($modelIds)) throw new RuntimeException('Um dos modelos selecionados está inativo ou não existe.');
-                foreach($validModels as $validModel) $familyIds[]=(int)$validModel['familia_id'];
+                foreach($validModels as $validModel){
+                    if(!in_array((int)$validModel['marca_id'],$brandIds,true)) throw new RuntimeException('Um dos modelos não pertence às marcas selecionadas.');
+                    $familyIds[]=(int)$validModel['familia_id'];
+                }
                 $familyIds=array_values(array_unique($familyIds));
             }
             $duration=max(0,(int)($_POST['duracao_minutos']??0))*60;
             $publishedAt=$status==='publicado'?($current['publicado_em']?:date('Y-m-d H:i:s')):null;
             $pdo->beginTransaction();
             if($action==='create'){
-                $stmt=$pdo->prepare('INSERT INTO videos(categoria_id,subcategoria_id,titulo,descricao,tipo,arquivo_url,thumbnail,duracao_segundos,status,criado_por,publicado_em) VALUES(?,?,?,?,?,?,?,?,?,?,?)');
-                $stmt->execute([$categoryId,$subcategoryId,$title,trim((string)($_POST['descricao']??'')),$type,$fileUrl,$thumbnail,$duration?:null,$status,user()['id']??null,$publishedAt]);
+                $stmt=$pdo->prepare('INSERT INTO videos(categoria_id,subcategoria_id,titulo,descricao,transcricao,transcricao_status,transcricao_idioma,transcricao_atualizada_em,tipo,arquivo_url,thumbnail,duracao_segundos,status,criado_por,publicado_em) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+                $stmt->execute([$categoryId,$subcategoryId,$title,trim((string)($_POST['descricao']??'')),$transcript?:null,$transcript!==''?'concluida':'pendente',$transcript!==''?'pt-BR':null,$transcript!==''?date('Y-m-d H:i:s'):null,$type,$fileUrl,$thumbnail,$duration?:null,$status,user()['id']??null,$publishedAt]);
                 $id=(int)$pdo->lastInsertId();
             }else{
-                $stmt=$pdo->prepare('UPDATE videos SET categoria_id=?,subcategoria_id=?,titulo=?,descricao=?,tipo=?,arquivo_url=?,thumbnail=?,duracao_segundos=?,status=?,publicado_em=? WHERE id=?');
-                $stmt->execute([$categoryId,$subcategoryId,$title,trim((string)($_POST['descricao']??'')),$type,$fileUrl,$thumbnail,$duration?:null,$status,$publishedAt,$id]);
+                $stmt=$pdo->prepare('UPDATE videos SET categoria_id=?,subcategoria_id=?,titulo=?,descricao=?,transcricao=?,transcricao_status=?,transcricao_idioma=?,transcricao_atualizada_em=?,tipo=?,arquivo_url=?,thumbnail=?,duracao_segundos=?,status=?,publicado_em=? WHERE id=?');
+                $stmt->execute([$categoryId,$subcategoryId,$title,trim((string)($_POST['descricao']??'')),$transcript?:null,$transcript!==''?'concluida':'pendente',$transcript!==''?'pt-BR':null,$transcript!==''?date('Y-m-d H:i:s'):null,$type,$fileUrl,$thumbnail,$duration?:null,$status,$publishedAt,$id]);
                 $pdo->prepare('DELETE FROM video_familias WHERE video_id=?')->execute([$id]);
                 $pdo->prepare('DELETE FROM video_modelos WHERE video_id=?')->execute([$id]);
+                $pdo->prepare('DELETE FROM video_marcas WHERE video_id=?')->execute([$id]);
             }
+            $brandLink=$pdo->prepare('INSERT INTO video_marcas(video_id,marca_id) VALUES(?,?)'); foreach($brandIds as $brandId)$brandLink->execute([$id,$brandId]);
             $familyLink=$pdo->prepare('INSERT INTO video_familias(video_id,familia_id) VALUES(?,?)'); foreach($familyIds as $familyId)$familyLink->execute([$id,$familyId]);
             $modelLink=$pdo->prepare('INSERT INTO video_modelos(video_id,modelo_id) VALUES(?,?)'); foreach($modelIds as $modelId)$modelLink->execute([$id,$modelId]);
             $pdo->commit();
@@ -417,17 +444,22 @@ $pages = [
     'biblioteca' => ['library','Biblioteca de treinamentos'], 'frota' => ['fleet','Minha frota'], 'catalogo-tecnico' => ['technical_catalog','Catálogo técnico'], 'normas-emissoes' => ['emission_standards','Normas de emissões'], 'marcas' => ['brands','Marcas de veículos'],
     'familias' => ['families','Famílias de veículos'], 'modelos' => ['models','Modelos'],
     'categorias' => ['categories','Categorias'], 'subcategorias' => ['subcategories','Subcategorias'], 'videos' => ['videos','Vídeos'],
-    'empresas-vwco' => ['organizations','Empresas VWCO'], 'clientes' => ['clients','Clientes'], 'usuarios' => ['users','Usuários'],
+    'empresas-vwco' => ['organizations','Empresas VWCO'], 'clientes' => ['clients','Clientes'], 'usuarios' => ['users','Usuários'], 'setores' => ['sectors','Setores e equipes'],
     'permissoes' => ['permissions','Perfis e permissões'], 'relatorios' => ['reports','Relatórios e avaliações'],
+    'service-desk' => ['service_desk','Service Desk'],
+    'categorias-relatos' => ['report_categories','Categorias mestre de relatos'],
+    'termos-classificacao' => ['report_terms','Termos de classificação'],
+    'configuracoes-assistente' => ['assistant_settings','Limites do assistente'],
     'cotacao-ia' => ['ai_quote','Cotação de IA'],
 ];
 $selected = $pages[$route] ?? null;
 if (!$selected) { http_response_code(404); $selected = ['not-found','Página não encontrada']; }
 [$resource, $pageTitle] = $selected;
 if ($resource === 'ai_quote' && !is_master()) { http_response_code(403); $resource = 'forbidden'; $pageTitle = 'Acesso restrito'; }
+if ($resource === 'assistant_settings' && !is_master()) { http_response_code(403); $resource = 'forbidden'; $pageTitle = 'Acesso restrito'; }
 if ($resource !== 'not-found' && !can($resource, 'view')) { http_response_code(403); $resource = 'forbidden'; $pageTitle = 'Acesso restrito'; }
 
-$families = []; $models = []; $categories = []; $subcategories = []; $videos = []; $familyOptions = []; $modelOptions = []; $categoryOptions = []; $subcategoryOptions = []; $brandOptions=[]; $dashboard = []; $totalRows = 0; $totalPages = 1; $access = []; $fleet = []; $emissionStandards = []; $library = []; $reports = []; $brandPage=[]; $technicalCatalog=[];
+$families = []; $models = []; $categories = []; $subcategories = []; $videos = []; $familyOptions = []; $modelOptions = []; $categoryOptions = []; $subcategoryOptions = []; $brandOptions=[]; $dashboard = []; $totalRows = 0; $totalPages = 1; $access = []; $fleet = []; $emissionStandards = []; $library = []; $reports = []; $brandPage=[]; $technicalCatalog=[]; $serviceDesk=[]; $sectors=[]; $taxonomy=[]; $assistantSettings=[];
 if (in_array($resource, ['organizations','clients','users','permissions'], true) && database_ready()) $access = load_access_page($resource);
 if ($resource === 'fleet' && database_ready()) $fleet = load_fleet_page();
 if ($resource === 'emission_standards' && database_ready()) $emissionStandards = load_emission_standards_page();
@@ -436,6 +468,10 @@ if ($resource === 'reports' && database_ready()) $reports = load_reports_page();
 if ($resource === 'dashboard' && database_ready()) $dashboard = load_dashboard_page();
 if ($resource === 'brands' && database_ready()) $brandPage = load_brands_page();
 if ($resource === 'technical_catalog' && database_ready()) $technicalCatalog = load_technical_catalog_page();
+if ($resource === 'service_desk' && database_ready()) $serviceDesk = load_service_desk_page();
+if ($resource === 'sectors' && database_ready()) $sectors = load_sectors_page();
+if (in_array($resource,['report_categories','report_terms'],true) && database_ready()) $taxonomy = load_report_taxonomy_page($resource);
+if ($resource === 'assistant_settings' && database_ready()) $assistantSettings = load_assistant_settings_page();
 if ($resource === 'families' && database_ready()) {
     [$page, $perPage, $offset] = pagination_params();
     $q = trim((string)($_GET['q'] ?? '')); $status = (string)($_GET['status'] ?? '');$brandFilter=(int)($_GET['marca']??0);$typeFilter=(string)($_GET['tipo']??'');$brandOptions=db()->query('SELECT id,nome FROM marcas WHERE ativo=1 ORDER BY nome')->fetchAll();
@@ -498,20 +534,31 @@ if ($resource === 'subcategories' && database_ready()) {
 }
 if($resource==='videos'&&database_ready()){
     [$page,$perPage,$offset]=pagination_params();
-    $q=trim((string)($_GET['q']??'')); $status=(string)($_GET['status']??''); $typeFilter=(string)($_GET['tipo']??''); $categoryFilter=(int)($_GET['categoria']??0);
+    $q=trim((string)($_GET['q']??'')); $status=(string)($_GET['status']??''); $typeFilter=(string)($_GET['tipo']??''); $categoryFilter=(int)($_GET['categoria']??0); $brandFilter=(int)($_GET['marca']??0); $familyFilter=(int)($_GET['familia']??0); $modelFilter=(int)($_GET['modelo']??0);
     $categoryOptions=db()->query('SELECT id,nome FROM categorias WHERE ativo=1 ORDER BY ordem,nome')->fetchAll();
     $subcategoryOptions=db()->query('SELECT id,categoria_id,nome FROM subcategorias WHERE ativo=1 ORDER BY ordem,nome')->fetchAll();
-    $brandOptions=db()->query('SELECT id,nome FROM marcas WHERE ativo=1 ORDER BY nome')->fetchAll();
-    $familyOptions=db()->query('SELECT f.id,f.marca_id,f.nome,ma.nome marca_nome FROM familias f JOIN marcas ma ON ma.id=f.marca_id WHERE f.ativo=1 ORDER BY ma.nome,f.nome')->fetchAll();
-    $modelOptions=db()->query('SELECT m.id,m.familia_id,f.marca_id,m.nome,f.nome familia_nome,ma.nome marca_nome FROM modelos m JOIN familias f ON f.id=m.familia_id JOIN marcas ma ON ma.id=f.marca_id WHERE m.ativo=1 ORDER BY ma.nome,f.nome,m.nome')->fetchAll();
+    if(is_master()){
+        $brandOptions=db()->query('SELECT id,nome FROM marcas WHERE ativo=1 ORDER BY nome')->fetchAll();
+        $familyOptions=db()->query('SELECT f.id,f.marca_id,f.nome,ma.nome marca_nome FROM familias f JOIN marcas ma ON ma.id=f.marca_id WHERE f.ativo=1 ORDER BY ma.nome,f.nome')->fetchAll();
+        $modelOptions=db()->query('SELECT m.id,m.familia_id,f.marca_id,m.nome,f.nome familia_nome,ma.nome marca_nome FROM modelos m JOIN familias f ON f.id=m.familia_id JOIN marcas ma ON ma.id=f.marca_id WHERE m.ativo=1 ORDER BY ma.nome,f.nome,m.nome')->fetchAll();
+    }else{
+        $optionUserId=(int)(user()['id']??0);
+        $brandStmt=db()->prepare('SELECT ma.id,ma.nome FROM marcas ma JOIN usuario_marcas um ON um.marca_id=ma.id WHERE um.usuario_id=? AND ma.ativo=1 ORDER BY ma.nome');$brandStmt->execute([$optionUserId]);$brandOptions=$brandStmt->fetchAll();
+        $familyStmt=db()->prepare('SELECT f.id,f.marca_id,f.nome,ma.nome marca_nome FROM familias f JOIN marcas ma ON ma.id=f.marca_id JOIN usuario_marcas um ON um.marca_id=ma.id WHERE um.usuario_id=? AND f.ativo=1 ORDER BY ma.nome,f.nome');$familyStmt->execute([$optionUserId]);$familyOptions=$familyStmt->fetchAll();
+        $modelStmt=db()->prepare('SELECT m.id,m.familia_id,f.marca_id,m.nome,f.nome familia_nome,ma.nome marca_nome FROM modelos m JOIN familias f ON f.id=m.familia_id JOIN marcas ma ON ma.id=f.marca_id JOIN usuario_marcas um ON um.marca_id=ma.id WHERE um.usuario_id=? AND m.ativo=1 ORDER BY ma.nome,f.nome,m.nome');$modelStmt->execute([$optionUserId]);$modelOptions=$modelStmt->fetchAll();
+    }
     $where=[];$params=[];
+    if(!is_master()){ $where[]='EXISTS(SELECT 1 FROM video_marcas vms JOIN usuario_marcas ums ON ums.marca_id=vms.marca_id WHERE vms.video_id=v.id AND ums.usuario_id=?)';$params[]=(int)(user()['id']??0); }
     if($q!==''){ $where[]='(v.titulo LIKE ? OR v.descricao LIKE ?)';$params[]="%{$q}%";$params[]="%{$q}%"; }
     if(in_array($status,['rascunho','publicado','arquivado'],true)){ $where[]='v.status=?';$params[]=$status; }
     if(in_array($typeFilter,['upload','youtube'],true)){ $where[]='v.tipo=?';$params[]=$typeFilter; }
     if($categoryFilter>0){ $where[]='v.categoria_id=?';$params[]=$categoryFilter; }
+    if($brandFilter>0){ $where[]='EXISTS(SELECT 1 FROM video_marcas vmf WHERE vmf.video_id=v.id AND vmf.marca_id=?)';$params[]=$brandFilter; }
+    if($familyFilter>0){ $where[]='EXISTS(SELECT 1 FROM video_familias vff WHERE vff.video_id=v.id AND vff.familia_id=?)';$params[]=$familyFilter; }
+    if($modelFilter>0){ $where[]='EXISTS(SELECT 1 FROM video_modelos vmd WHERE vmd.video_id=v.id AND vmd.modelo_id=?)';$params[]=$modelFilter; }
     $whereSql=$where?' WHERE '.implode(' AND ',$where):'';
     $count=db()->prepare('SELECT COUNT(*) FROM videos v'.$whereSql);$count->execute($params);$totalRows=(int)$count->fetchColumn();$totalPages=max(1,(int)ceil($totalRows/$perPage));
-    $sql='SELECT v.*,c.nome categoria_nome,s.nome subcategoria_nome,(SELECT GROUP_CONCAT(f.nome ORDER BY f.nome SEPARATOR ", ") FROM video_familias vf JOIN familias f ON f.id=vf.familia_id WHERE vf.video_id=v.id) familias_nomes,(SELECT GROUP_CONCAT(m.nome ORDER BY m.nome SEPARATOR ", ") FROM video_modelos vm JOIN modelos m ON m.id=vm.modelo_id WHERE vm.video_id=v.id) modelos_nomes,(SELECT GROUP_CONCAT(vf.familia_id) FROM video_familias vf WHERE vf.video_id=v.id) familia_ids,(SELECT GROUP_CONCAT(vm.modelo_id) FROM video_modelos vm WHERE vm.video_id=v.id) modelo_ids,(SELECT COUNT(*) FROM video_visualizacoes vv WHERE vv.video_id=v.id) visualizacoes FROM videos v JOIN categorias c ON c.id=v.categoria_id LEFT JOIN subcategorias s ON s.id=v.subcategoria_id'.$whereSql.' ORDER BY v.criado_em DESC LIMIT ? OFFSET ?';
+    $sql='SELECT v.*,c.nome categoria_nome,s.nome subcategoria_nome,(SELECT GROUP_CONCAT(ma.nome ORDER BY ma.nome SEPARATOR ", ") FROM video_marcas vma JOIN marcas ma ON ma.id=vma.marca_id WHERE vma.video_id=v.id) marcas_nomes,(SELECT GROUP_CONCAT(vma.marca_id) FROM video_marcas vma WHERE vma.video_id=v.id) marca_ids,(SELECT GROUP_CONCAT(f.nome ORDER BY f.nome SEPARATOR ", ") FROM video_familias vf JOIN familias f ON f.id=vf.familia_id WHERE vf.video_id=v.id) familias_nomes,(SELECT GROUP_CONCAT(m.nome ORDER BY m.nome SEPARATOR ", ") FROM video_modelos vm JOIN modelos m ON m.id=vm.modelo_id WHERE vm.video_id=v.id) modelos_nomes,(SELECT GROUP_CONCAT(vf.familia_id) FROM video_familias vf WHERE vf.video_id=v.id) familia_ids,(SELECT GROUP_CONCAT(vm.modelo_id) FROM video_modelos vm WHERE vm.video_id=v.id) modelo_ids,(SELECT COUNT(*) FROM video_visualizacoes vv WHERE vv.video_id=v.id) visualizacoes FROM videos v JOIN categorias c ON c.id=v.categoria_id LEFT JOIN subcategorias s ON s.id=v.subcategoria_id'.$whereSql.' ORDER BY v.criado_em DESC LIMIT ? OFFSET ?';
     $stmt=db()->prepare($sql);foreach($params as $i=>$value)$stmt->bindValue($i+1,$value);$stmt->bindValue(count($params)+1,$perPage,PDO::PARAM_INT);$stmt->bindValue(count($params)+2,$offset,PDO::PARAM_INT);$stmt->execute();$videos=$stmt->fetchAll();
 }
 

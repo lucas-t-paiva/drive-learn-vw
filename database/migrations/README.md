@@ -14,6 +14,16 @@ Faça um backup antes de importar. No phpMyAdmin, selecione o banco correto e im
 10. `20260725_010_tipo_veiculo_familias_frotas.sql` — classifica famílias e composições de frota como caminhão ou ônibus e cria os índices usados pelos novos filtros.
 11. `20260725_011_lembrar_login.sql` — cria os tokens seguros e revogáveis utilizados pela opção “Lembrar de mim”.
 12. `20260725_012_recuperacao_senha_email.sql` — cria os códigos de recuperação de senha com expiração, limite de tentativas e uso único.
+13. `20260728_013_vinculos_marcas_videos_usuarios.sql` — vincula vídeos e usuários a uma ou mais marcas e preserva os acessos existentes.
+14. `20260728_014_assistente_voz_conhecimento.sql` — adiciona transcrições aos vídeos, histórico de perguntas e respostas reutilizáveis do assistente por voz.
+15. `20260729_015_assistente_fontes_acoes_catalogo.sql` — preserva uma cópia das transcrições e especificações efetivamente usadas em cada resposta do assistente.
+16. `20260729_016_assistente_consultas_sistema.sql` — habilita fontes analíticas de frota para consultas de clientes, marcas e regiões.
+17. `20260729_017_service_desk_relato_setores_sla.sql` — cria a voz do cliente e o Service Desk: relatos confirmados, categorização, setores, equipes, responsáveis, SLA, histórico, soluções, notificações e satisfação.
+18. `20260729_018_taxonomia_relato_limites_assistente.sql` — libera os cadastros de categorias mestre e termos de classificação, separa consultas da franquia dos passos locais do Service Desk e cria limites globais ou específicos por empresa.
+19. `20260729_019_master_categories_automotivas.sql` — cria a taxonomia detalhada por sistemas do veículo e direciona cada categoria para sua área técnica padrão.
+20. `20260729_020_category_terms_automotivos.sql` — alimenta os termos e expressões ponderados usados na classificação local e híbrida dos relatos.
+21. `20260729_021_gestao_setores_equipes.sql` — libera o módulo dedicado de setores e equipes para administradores, com cadastro, edição e gestão de integrantes.
+22. `20260729_022_corrige_taxonomia_legada.sql` — converte as antigas colunas em inglês de categorias e termos para a estrutura atual, preservando IDs e vínculos; depois de executá-la, reaplique as migrations 019 e 020.
 
 Cada arquivo registra sua versão em `schema_migrations`. Os arquivos foram preparados para uma única importação; não edite nem pule a ordem.
 

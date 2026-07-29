@@ -3,11 +3,17 @@ declare(strict_types=1);
 
 function library_video_access_sql(array &$params, string $alias = 'v'): string
 {
-    if ((user()['active_company_type'] ?? '') !== 'cliente') return '1=1';
+    $rules=[];
+    if(!is_master()){
+        $params[]=(int)(user()['id']??0);
+        $rules[]="EXISTS(SELECT 1 FROM video_marcas vma JOIN usuario_marcas uma ON uma.marca_id=vma.marca_id WHERE vma.video_id={$alias}.id AND uma.usuario_id=?)";
+    }
+    if ((user()['active_company_type'] ?? '') !== 'cliente') return $rules?implode(' AND ',$rules):'1=1';
     $companyId = active_company_id();
     if (!$companyId) return '1=0';
     $params[]=$companyId;$params[]=$companyId;
-    return "(NOT EXISTS(SELECT 1 FROM video_modelos vm0 WHERE vm0.video_id={$alias}.id) AND NOT EXISTS(SELECT 1 FROM video_familias vf0 WHERE vf0.video_id={$alias}.id) OR EXISTS(SELECT 1 FROM video_modelos vm JOIN frotas fr ON fr.modelo_id=vm.modelo_id JOIN clientes cl ON cl.id=fr.cliente_id WHERE vm.video_id={$alias}.id AND cl.empresa_id=?) OR EXISTS(SELECT 1 FROM video_familias vf JOIN modelos mo ON mo.familia_id=vf.familia_id JOIN frotas fr ON fr.modelo_id=mo.id JOIN clientes cl ON cl.id=fr.cliente_id WHERE vf.video_id={$alias}.id AND cl.empresa_id=?))";
+    $rules[]="(NOT EXISTS(SELECT 1 FROM video_modelos vm0 WHERE vm0.video_id={$alias}.id) AND NOT EXISTS(SELECT 1 FROM video_familias vf0 WHERE vf0.video_id={$alias}.id) OR EXISTS(SELECT 1 FROM video_modelos vm JOIN frotas fr ON fr.modelo_id=vm.modelo_id JOIN clientes cl ON cl.id=fr.cliente_id WHERE vm.video_id={$alias}.id AND cl.empresa_id=?) OR EXISTS(SELECT 1 FROM video_familias vf JOIN modelos mo ON mo.familia_id=vf.familia_id JOIN frotas fr ON fr.modelo_id=mo.id JOIN clientes cl ON cl.id=fr.cliente_id WHERE vf.video_id={$alias}.id AND cl.empresa_id=?))";
+    return implode(' AND ',$rules);
 }
 
 function library_find_video(PDO $pdo, int $videoId): ?array
@@ -69,7 +75,7 @@ function load_library_page(): array
     $categoryStmt=$pdo->prepare("SELECT c.id,c.nome,c.icone,COUNT(DISTINCT vc.id) videos FROM categorias c JOIN videos vc ON vc.categoria_id=c.id AND vc.status='publicado' WHERE c.ativo=1 AND {$categoryAccess} GROUP BY c.id,c.nome,c.icone,c.ordem HAVING COUNT(DISTINCT vc.id)>0 ORDER BY c.ordem,c.nome");
     $categoryStmt->execute($categoryParams);$categories=$categoryStmt->fetchAll();
     $familyParams=[];$familyAccess=library_video_access_sql($familyParams,'vo');$familyStmt=$pdo->prepare("SELECT fa.id,fa.marca_id,fa.nome,ma.nome marca_nome FROM familias fa JOIN marcas ma ON ma.id=fa.marca_id WHERE fa.ativo=1 AND EXISTS(SELECT 1 FROM videos vo WHERE vo.status='publicado' AND {$familyAccess} AND (EXISTS(SELECT 1 FROM video_familias vf WHERE vf.video_id=vo.id AND vf.familia_id=fa.id) OR EXISTS(SELECT 1 FROM video_modelos vm JOIN modelos mx ON mx.id=vm.modelo_id WHERE vm.video_id=vo.id AND mx.familia_id=fa.id))) ORDER BY ma.nome,fa.nome");$familyStmt->execute($familyParams);$families=$familyStmt->fetchAll();
-    $modelParams=[];$modelAccess=library_video_access_sql($modelParams,'vo');$clientModelSql='';if((user()['active_company_type']??'')==='cliente'){$clientModelSql=' AND EXISTS(SELECT 1 FROM frotas fr JOIN clientes cl ON cl.id=fr.cliente_id WHERE fr.modelo_id=mo.id AND cl.empresa_id=?)';$modelParams[]=active_company_id();}
+    $modelAccessParams=[];$modelAccess=library_video_access_sql($modelAccessParams,'vo');$modelParams=[];$clientModelSql='';if((user()['active_company_type']??'')==='cliente'){$clientModelSql=' AND EXISTS(SELECT 1 FROM frotas fr JOIN clientes cl ON cl.id=fr.cliente_id WHERE fr.modelo_id=mo.id AND cl.empresa_id=?)';$modelParams[]=active_company_id();}$modelParams=array_merge($modelParams,$modelAccessParams);
     $modelStmt=$pdo->prepare("SELECT mo.id,mo.familia_id,fa.marca_id,mo.nome,ma.nome marca_nome FROM modelos mo JOIN familias fa ON fa.id=mo.familia_id JOIN marcas ma ON ma.id=fa.marca_id WHERE mo.ativo=1{$clientModelSql} AND EXISTS(SELECT 1 FROM videos vo WHERE vo.status='publicado' AND {$modelAccess} AND (EXISTS(SELECT 1 FROM video_modelos vm WHERE vm.video_id=vo.id AND vm.modelo_id=mo.id) OR EXISTS(SELECT 1 FROM video_familias vf WHERE vf.video_id=vo.id AND vf.familia_id=mo.familia_id))) ORDER BY ma.nome,mo.nome");$modelStmt->execute($modelParams);$models=$modelStmt->fetchAll();
     $brandMap=[];foreach(array_merge($families,$models) as $vehicleOption)$brandMap[(int)$vehicleOption['marca_id']]=['id'=>(int)$vehicleOption['marca_id'],'nome'=>$vehicleOption['marca_nome']];$brands=array_values($brandMap);usort($brands,static fn(array $a,array $b):int=>strnatcasecmp($a['nome'],$b['nome']));
     $featured=$videos[0]??null;$grouped=[];foreach($videos as $video)$grouped[$video['categoria_nome']][]=$video;

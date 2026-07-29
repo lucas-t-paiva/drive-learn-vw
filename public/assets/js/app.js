@@ -1,4 +1,52 @@
-document.querySelectorAll('[data-menu]').forEach(el=>el.addEventListener('click',()=>{document.querySelector('#sidebar')?.classList.toggle('open');document.querySelector('.sidebar-backdrop')?.classList.toggle('open')}));
+const sidebar=document.querySelector('#sidebar'),sidebarBackdrop=document.querySelector('.sidebar-backdrop'),menuButton=document.querySelector('.hamburger');
+const isMobileMenu=()=>window.matchMedia('(max-width: 800px)').matches;
+const savedSidebarState=()=>{try{return localStorage.getItem('driveLearnSidebarCollapsed')==='1'}catch{return false}};
+const setDesktopSidebar=collapsed=>{
+ document.body.classList.toggle('sidebar-collapsed',collapsed);
+ menuButton?.setAttribute('aria-expanded',collapsed?'false':'true');
+ try{localStorage.setItem('driveLearnSidebarCollapsed',collapsed?'1':'0')}catch{}
+};
+const syncSidebarToViewport=()=>{
+ sidebar?.classList.remove('open');sidebarBackdrop?.classList.remove('open');
+ document.body.classList.toggle('sidebar-collapsed',!isMobileMenu()&&savedSidebarState());
+ menuButton?.setAttribute('aria-expanded','false');
+};
+syncSidebarToViewport();
+document.querySelectorAll('[data-menu]').forEach(element=>element.addEventListener('click',()=>{
+ if(isMobileMenu()){
+  const open=!sidebar?.classList.contains('open');
+  sidebar?.classList.toggle('open',open);sidebarBackdrop?.classList.toggle('open',open);
+  menuButton?.setAttribute('aria-expanded',open?'true':'false');
+  return;
+ }
+ setDesktopSidebar(!document.body.classList.contains('sidebar-collapsed'));
+}));
+window.addEventListener('resize',syncSidebarToViewport);
+
+const sidebarNav=document.querySelector('.sidebar .nav');
+if(sidebarNav){
+ const labels=Array.from(sidebarNav.children).filter(element=>element.classList.contains('nav-label'));
+ const groupKey=value=>(value||'grupo').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+ labels.forEach(label=>{
+  const items=[];let cursor=label.nextElementSibling;
+  while(cursor&&!cursor.classList.contains('nav-label')){const next=cursor.nextElementSibling;items.push(cursor);cursor=next}
+  if(!items.length)return;
+  const key=groupKey(label.textContent),group=document.createElement('section'),button=document.createElement('button'),content=document.createElement('div');
+  group.className='nav-group';group.dataset.navGroup=key;
+  button.type='button';button.className='nav-group-toggle';button.innerHTML=`<span>${label.textContent.trim()}</span><i class="bi bi-chevron-down" aria-hidden="true"></i>`;
+  button.setAttribute('aria-controls',`nav-group-${key}`);
+  content.className='nav-group-items';content.id=`nav-group-${key}`;
+  label.before(group);label.remove();items.forEach(item=>content.append(item));group.append(button,content);
+  let collapsed=false;
+  try{collapsed=localStorage.getItem(`driveLearnNavGroup:${key}`)==='1'}catch{}
+  if(content.querySelector('a.active'))collapsed=false;
+  const apply=value=>{
+   group.classList.toggle('collapsed',value);button.setAttribute('aria-expanded',value?'false':'true');
+   try{localStorage.setItem(`driveLearnNavGroup:${key}`,value?'1':'0')}catch{}
+  };
+  apply(collapsed);button.addEventListener('click',()=>apply(!group.classList.contains('collapsed')));
+ });
+}
 document.querySelector('[data-user-menu]')?.addEventListener('click',()=>document.querySelector('.user-dropdown')?.classList.toggle('open'));
 document.querySelectorAll('[data-toggle-password]').forEach(button=>button.addEventListener('click',e=>{const i=e.currentTarget.parentElement.querySelector('input');const icon=e.currentTarget.querySelector('i');i.type=i.type==='password'?'text':'password';icon?.classList.toggle('bi-eye');icon?.classList.toggle('bi-eye-slash')}));
 document.querySelectorAll('[data-code-countdown]').forEach(counter=>{let remaining=Math.max(0,Number(counter.dataset.seconds)||120);const container=counter.closest('.code-expiration');const render=()=>{counter.textContent=`${String(Math.floor(remaining/60)).padStart(2,'0')}:${String(remaining%60).padStart(2,'0')}`;if(remaining<=0){container?.classList.add('expired');container?.querySelector('span')&&(container.querySelector('span').textContent='Código expirado');clearInterval(timer)}remaining--};const timer=setInterval(render,1000);render()});
@@ -62,24 +110,42 @@ const bindContentCrud=(type,fields)=>{
 bindContentCrud('category',{name:'nome',description:'descricao',icon:'icone',order:'ordem'});
 bindContentCrud('subcategory',{category:'categoria_id',name:'nome',description:'descricao',order:'ordem'});
 
+const reportCategoryForm=document.querySelector('[data-report-category-form]');
+if(reportCategoryForm){
+ const reset=()=>{reportCategoryForm.reset();reportCategoryForm.querySelector('[name="action"]').value='create';reportCategoryForm.querySelector('[name="id"]').value='';reportCategoryForm.querySelector('[name="ativo"]').checked=true;document.querySelector('[data-report-category-title]').textContent='Nova categoria';reportCategoryForm.querySelectorAll('select').forEach(select=>select._refreshSearchable?.())};
+ document.querySelector('[data-report-category-create]')?.addEventListener('click',()=>{reset();openModal('#report-category-modal')});
+ document.querySelectorAll('[data-report-category-edit]').forEach(button=>button.addEventListener('click',()=>{reset();const row=JSON.parse(button.dataset.row||'{}');reportCategoryForm.querySelector('[name="action"]').value='update';Object.entries(row).forEach(([name,value])=>{const field=reportCategoryForm.querySelector(`[name="${name}"]`);if(!field)return;if(field.type==='checkbox')field.checked=!!Number(value);else field.value=value??''});reportCategoryForm.querySelectorAll('select').forEach(select=>select._refreshSearchable?.());document.querySelector('[data-report-category-title]').textContent='Editar categoria';openModal('#report-category-modal')}));
+ document.querySelectorAll('[data-report-category-delete]').forEach(button=>button.addEventListener('click',()=>{document.querySelector('[data-delete-report-category-id]').value=button.dataset.id;document.querySelector('[data-delete-report-category-name]').textContent=button.dataset.name;openModal('#delete-report-category-modal')}));
+}
+const reportTermForm=document.querySelector('[data-report-term-form]');
+if(reportTermForm){
+ const reset=()=>{reportTermForm.reset();reportTermForm.querySelector('[name="action"]').value='create';reportTermForm.querySelector('[name="id"]').value='';reportTermForm.querySelector('[name="ativo"]').checked=true;document.querySelector('[data-report-term-title]').textContent='Novo termo';reportTermForm.querySelectorAll('select').forEach(select=>select._refreshSearchable?.())};
+ document.querySelector('[data-report-term-create]')?.addEventListener('click',()=>{reset();openModal('#report-term-modal')});
+ document.querySelectorAll('[data-report-term-edit]').forEach(button=>button.addEventListener('click',()=>{reset();const row=JSON.parse(button.dataset.row||'{}');reportTermForm.querySelector('[name="action"]').value='update';Object.entries(row).forEach(([name,value])=>{const field=reportTermForm.querySelector(`[name="${name}"]`);if(!field)return;if(field.type==='checkbox')field.checked=!!Number(value);else field.value=value??''});reportTermForm.querySelectorAll('select').forEach(select=>select._refreshSearchable?.());document.querySelector('[data-report-term-title]').textContent='Editar termo';openModal('#report-term-modal')}));
+ document.querySelectorAll('[data-report-term-delete]').forEach(button=>button.addEventListener('click',()=>{document.querySelector('[data-delete-report-term-id]').value=button.dataset.id;document.querySelector('[data-delete-report-term-name]').textContent=button.dataset.name;openModal('#delete-report-term-modal')}));
+}
+
 const videoForm=document.querySelector('[data-video-form]');
 if(videoForm){
  const videoCategory=videoForm.querySelector('[data-video-category]'),videoSubcategory=videoForm.querySelector('[data-video-subcategory]');
  const videoModalContent=videoForm.closest('.modal-content');
- const familyGrid=videoForm.querySelector('[data-family-selection]'),modelGrid=videoForm.querySelector('[data-model-selection]');
- const filterModelsByFamily=(clearHidden=false)=>{const selected=new Set(Array.from(familyGrid.querySelectorAll('input:checked')).map(input=>input.value));modelGrid.querySelectorAll('[data-model-label]').forEach(label=>{const hidden=selected.size>0&&!selected.has(label.dataset.familyId);label.classList.toggle('family-filtered',hidden);if(hidden&&clearHidden)label.querySelector('input').checked=false})};
- const addSelectionActions=(grid,onChange)=>{const actions=document.createElement('div');actions.className='selection-actions';actions.innerHTML='<button type="button" class="selection-action" data-select-visible><i class="bi bi-check2-all"></i> Selecionar todos os visíveis</button><button type="button" class="selection-action" data-clear-selection><i class="bi bi-x-circle"></i> Limpar seleção</button>';grid.before(actions);actions.querySelector('[data-select-visible]').addEventListener('click',()=>{grid.querySelectorAll('label:not(.selection-filtered):not(.family-filtered) input[type="checkbox"]').forEach(input=>input.checked=true);onChange?.()});actions.querySelector('[data-clear-selection]').addEventListener('click',()=>{grid.querySelectorAll('input[type="checkbox"]').forEach(input=>input.checked=false);onChange?.()})};
+ const brandGrid=videoForm.querySelector('[data-brand-selection]'),familyGrid=videoForm.querySelector('[data-family-selection]'),modelGrid=videoForm.querySelector('[data-model-selection]');
+ const filterModelsByFamily=(clearHidden=false)=>{const brands=new Set(Array.from(brandGrid.querySelectorAll('input:checked')).map(input=>input.value)),families=new Set(Array.from(familyGrid.querySelectorAll('input:checked')).map(input=>input.value));modelGrid.querySelectorAll('[data-model-label]').forEach(label=>{const hidden=!brands.has(label.dataset.brandId)||!families.has(label.dataset.familyId);label.classList.toggle('family-filtered',hidden);if(hidden&&clearHidden)label.querySelector('input').checked=false})};
+ const filterFamiliesByBrand=(clearHidden=false)=>{const selected=new Set(Array.from(brandGrid.querySelectorAll('input:checked')).map(input=>input.value));familyGrid.querySelectorAll('[data-family-label]').forEach(label=>{const hidden=!selected.has(label.dataset.brandId);label.classList.toggle('brand-filtered',hidden);if(hidden&&clearHidden)label.querySelector('input').checked=false});filterModelsByFamily(clearHidden)};
+ const addSelectionActions=(grid,onChange)=>{const actions=document.createElement('div');actions.className='selection-actions';actions.innerHTML='<button type="button" class="selection-action" data-select-visible><i class="bi bi-check2-all"></i> Selecionar todos os visíveis</button><button type="button" class="selection-action" data-clear-selection><i class="bi bi-x-circle"></i> Limpar seleção</button>';grid.before(actions);actions.querySelector('[data-select-visible]').addEventListener('click',()=>{grid.querySelectorAll('label:not(.selection-filtered):not(.family-filtered):not(.brand-filtered) input[type="checkbox"]').forEach(input=>input.checked=true);onChange?.()});actions.querySelector('[data-clear-selection]').addEventListener('click',()=>{grid.querySelectorAll('input[type="checkbox"]').forEach(input=>input.checked=false);onChange?.()})};
+ addSelectionActions(brandGrid,()=>filterFamiliesByBrand(true));
  addSelectionActions(familyGrid,()=>filterModelsByFamily(true));
  addSelectionActions(modelGrid);
+ brandGrid.addEventListener('change',()=>filterFamiliesByBrand(true));
  familyGrid.addEventListener('change',()=>filterModelsByFamily(true));
- videoForm.querySelectorAll('[data-family-selection],[data-model-selection]').forEach(grid=>{let outerScroll=0,innerScroll=0;grid.addEventListener('pointerdown',()=>{outerScroll=videoModalContent.scrollTop;innerScroll=grid.scrollTop},{capture:true});grid.addEventListener('change',()=>{const restore=()=>{videoModalContent.scrollTop=outerScroll;grid.scrollTop=innerScroll};requestAnimationFrame(()=>{restore();requestAnimationFrame(restore)})})});
+ videoForm.querySelectorAll('[data-brand-selection],[data-family-selection],[data-model-selection]').forEach(grid=>{let outerScroll=0,innerScroll=0;grid.addEventListener('pointerdown',()=>{outerScroll=videoModalContent.scrollTop;innerScroll=grid.scrollTop},{capture:true});grid.addEventListener('change',()=>{const restore=()=>{videoModalContent.scrollTop=outerScroll;grid.scrollTop=innerScroll};requestAnimationFrame(()=>{restore();requestAnimationFrame(restore)})})});
  const setVideoSource=type=>{videoForm.querySelector(`[name="tipo"][value="${type}"]`).checked=true;videoForm.querySelector('[data-upload-panel]').hidden=type!=='upload';videoForm.querySelector('[data-youtube-panel]').hidden=type!=='youtube'};
  const filterVideoSubcategories=(selected='')=>{const category=videoCategory.value;Array.from(videoSubcategory.options).forEach(option=>{if(!option.value)return;option.hidden=option.dataset.category!==category});videoSubcategory.value=selected&&videoSubcategory.querySelector(`option[value="${selected}"]:not([hidden])`)?selected:'';videoSubcategory._refreshSearchable?.()};
- const resetVideoForm=()=>{videoForm.reset();videoForm.querySelector('[name="action"]').value='create';videoForm.querySelector('[name="id"]').value='';videoForm.querySelectorAll('[data-family-selection-search],[data-model-selection-search]').forEach(input=>{input.value='';input.dispatchEvent(new Event('input',{bubbles:true}))});filterModelsByFamily();document.querySelector('[data-video-modal-title]').textContent='Novo vídeo';document.querySelector('[data-video-thumbnail-preview]').innerHTML='<i class="bi bi-image"></i>';setVideoSource('upload');filterVideoSubcategories()};
+ const resetVideoForm=()=>{videoForm.reset();videoForm.querySelector('[name="action"]').value='create';videoForm.querySelector('[name="id"]').value='';videoForm.querySelectorAll('[data-brand-selection-search],[data-family-selection-search],[data-model-selection-search]').forEach(input=>{input.value='';input.dispatchEvent(new Event('input',{bubbles:true}))});filterFamiliesByBrand();document.querySelector('[data-video-modal-title]').textContent='Novo vídeo';document.querySelector('[data-video-thumbnail-preview]').innerHTML='<i class="bi bi-image"></i>';setVideoSource('upload');filterVideoSubcategories()};
  document.querySelector('[data-video-create]')?.addEventListener('click',()=>{resetVideoForm();openModal('#video-form-modal')});
  videoForm.querySelectorAll('[data-video-source]').forEach(input=>input.addEventListener('change',()=>setVideoSource(input.value)));
  videoCategory.addEventListener('change',()=>filterVideoSubcategories());
- document.querySelectorAll('[data-video-edit]').forEach(button=>button.addEventListener('click',()=>{resetVideoForm();videoForm.querySelector('[name="action"]').value='update';videoForm.querySelector('[name="id"]').value=button.dataset.id;videoForm.querySelector('[name="titulo"]').value=button.dataset.title||'';videoForm.querySelector('[name="descricao"]').value=button.dataset.description||'';videoCategory.value=button.dataset.category||'';filterVideoSubcategories(button.dataset.subcategory||'');setVideoSource(button.dataset.type);videoForm.querySelector('[name="youtube_url"]').value=button.dataset.youtube||'';videoForm.querySelector('[name="duracao_minutos"]').value=button.dataset.duration||'';videoForm.querySelector('[name="status"]').value=button.dataset.status||'rascunho';const families=JSON.parse(button.dataset.families||'[]').map(String),models=JSON.parse(button.dataset.models||'[]').map(String);videoForm.querySelectorAll('[name="familias[]"]').forEach(input=>input.checked=families.includes(input.value));videoForm.querySelectorAll('[name="modelos[]"]').forEach(input=>input.checked=models.includes(input.value));filterModelsByFamily();if(button.dataset.thumbnail)document.querySelector('[data-video-thumbnail-preview]').innerHTML=`<img src="${button.dataset.thumbnail}" alt="Capa do vídeo">`;document.querySelector('[data-video-modal-title]').textContent='Editar vídeo';openModal('#video-form-modal')}));
+ document.querySelectorAll('[data-video-edit]').forEach(button=>button.addEventListener('click',()=>{resetVideoForm();videoForm.querySelector('[name="action"]').value='update';videoForm.querySelector('[name="id"]').value=button.dataset.id;videoForm.querySelector('[name="titulo"]').value=button.dataset.title||'';videoForm.querySelector('[name="descricao"]').value=button.dataset.description||'';const transcript=document.querySelector(`[data-video-transcript="${button.dataset.id}"]`);videoForm.querySelector('[name="transcricao"]').value=transcript?.content?.textContent||'';videoCategory.value=button.dataset.category||'';filterVideoSubcategories(button.dataset.subcategory||'');setVideoSource(button.dataset.type);videoForm.querySelector('[name="youtube_url"]').value=button.dataset.youtube||'';videoForm.querySelector('[name="duracao_minutos"]').value=button.dataset.duration||'';videoForm.querySelector('[name="status"]').value=button.dataset.status||'rascunho';const brands=JSON.parse(button.dataset.brands||'[]').map(String),families=JSON.parse(button.dataset.families||'[]').map(String),models=JSON.parse(button.dataset.models||'[]').map(String);videoForm.querySelectorAll('[name="marcas[]"]').forEach(input=>input.checked=brands.includes(input.value));filterFamiliesByBrand();videoForm.querySelectorAll('[name="familias[]"]').forEach(input=>input.checked=families.includes(input.value));filterModelsByFamily();videoForm.querySelectorAll('[name="modelos[]"]').forEach(input=>input.checked=models.includes(input.value));if(button.dataset.thumbnail)document.querySelector('[data-video-thumbnail-preview]').innerHTML=`<img src="${button.dataset.thumbnail}" alt="Capa do vídeo">`;document.querySelector('[data-video-modal-title]').textContent='Editar vídeo';openModal('#video-form-modal')}));
  document.querySelector('[data-video-thumbnail-input]')?.addEventListener('change',event=>{const file=event.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>document.querySelector('[data-video-thumbnail-preview]').innerHTML=`<img src="${reader.result}" alt="Pré-visualização">`;reader.readAsDataURL(file)});
 }
 document.querySelectorAll('[data-video-delete]').forEach(button=>button.addEventListener('click',()=>{document.querySelector('[data-delete-video-id]').value=button.dataset.id;document.querySelector('[data-delete-video-name]').textContent=button.dataset.name;openModal('#delete-video-modal')}));
@@ -94,6 +160,15 @@ const searchableTargets=[
  ['[data-fleet-form] select[name="marca_id"]','Pesquisar marca...'],
  ['[data-fleet-form] select[name="tipo_veiculo"]','Pesquisar tipo de veículo...'],
  ['[data-subcategory-form] select[name="categoria_id"]','Pesquisar categoria...'],
+ ['[data-report-category-form] select[name="setor_padrao_id"]','Pesquisar setor...'],
+ ['[data-report-term-form] select[name="categoria_id"]','Pesquisar categoria de relato...'],
+ ['.sector-filters select[name="empresa"]','Pesquisar organização...'],
+ ['.sector-filters select[name="status"]','Pesquisar situação...'],
+ ['[data-sector-form] select[name="empresa_id"]','Pesquisar organização...'],
+ ['[data-sector-member-form] select[name="usuario_id"]','Pesquisar usuário...'],
+ ['.sector-pagination select[name="per_page"]','Pesquisar quantidade...'],
+ ['.table-filters select[name="categoria"]','Pesquisar categoria...'],
+ ['.settings-form select[name="empresa_id"]','Pesquisar empresa...'],
  ['[data-video-form] select[name="categoria_id"]','Pesquisar categoria...'],
  ['[data-video-form] select[name="subcategoria_id"]','Pesquisar subcategoria...'],
  ['[data-company-form] select[name="estado_id"]','Pesquisar estado...'],
@@ -122,6 +197,9 @@ const searchableTargets=[
  ['.model-table-filters select[name="familia"]','Pesquisar família...'],
  ['.model-table-filters select[name="status"]','Pesquisar situação...'],
  ['.model-table-filters select[name="ficha"]','Pesquisar ficha...'],
+ ['.video-filters select[name="marca"]','Pesquisar marca...'],
+ ['.video-filters select[name="familia"]','Pesquisar família...'],
+ ['.video-filters select[name="modelo"]','Pesquisar modelo...'],
  ['.fleet-filters select[name="cliente"]','Pesquisar cliente...'],
  ['.fleet-filters select[name="tipo"]','Pesquisar tipo de veículo...'],
  ['.fleet-filters select[name="marca"]','Pesquisar marca...'],
@@ -146,6 +224,23 @@ const enhanceSearchableSelect=(select,placeholder)=>{
 searchableTargets.forEach(([selector,placeholder])=>enhanceSearchableSelect(document.querySelector(selector),placeholder));
 document.addEventListener('click',event=>{if(event.target.closest('[data-model-create],[data-model-edit],[data-subcategory-create],[data-subcategory-edit],[data-video-create],[data-video-edit]'))setTimeout(()=>document.querySelectorAll('.searchable-select-native').forEach(select=>select._refreshSearchable?.()))});
 
+const sectorForm=document.querySelector('[data-sector-form]');
+if(sectorForm){
+ const sectorTitle=document.querySelector('[data-sector-modal-title]'),sectorCompany=sectorForm.querySelector('[name="empresa_id"]');
+ const resetSector=()=>{sectorForm.reset();sectorForm.querySelector('[name="action"]').value='create';sectorForm.querySelector('[name="id"]').value='';sectorForm.querySelector('[name="ativo"]').checked=true;sectorTitle.textContent='Novo setor';sectorCompany._refreshSearchable?.()};
+ document.querySelector('[data-sector-create]')?.addEventListener('click',()=>{resetSector();openModal('#sector-modal')});
+ document.querySelectorAll('[data-sector-edit]').forEach(button=>button.addEventListener('click',()=>{resetSector();const data=JSON.parse(button.dataset.sector||'{}');sectorForm.querySelector('[name="action"]').value='update';Object.entries(data).forEach(([name,value])=>{const field=sectorForm.querySelector(`[name="${name}"]`);if(!field)return;if(field.type==='checkbox')field.checked=!!Number(value);else field.value=value??''});sectorCompany._refreshSearchable?.();sectorTitle.textContent='Editar setor';openModal('#sector-modal')}));
+}
+const sectorMemberForm=document.querySelector('[data-sector-member-form]');
+if(sectorMemberForm){
+ const memberSector=sectorMemberForm.querySelector('[name="setor_id"]'),memberUser=sectorMemberForm.querySelector('[name="usuario_id"]'),memberList=document.querySelector('[data-sector-members-list]'),memberTitle=document.querySelector('[data-sector-members-title]');
+ document.querySelectorAll('[data-sector-members]').forEach(button=>button.addEventListener('click',()=>{
+  const sectorId=button.dataset.id,companyId=button.dataset.company||'0';sectorMemberForm.reset();memberSector.value=sectorId;memberTitle.textContent=button.dataset.name||'setor';
+  Array.from(memberUser.options).forEach(option=>{if(!option.value)return;option.hidden=companyId!=='0'&&!String(option.dataset.companies||'').includes(`,${companyId},`)});
+  memberUser.value='';memberUser._refreshSearchable?.();memberList.innerHTML='';const template=document.querySelector(`[data-sector-members-template="${sectorId}"]`);if(template)memberList.append(template.content.cloneNode(true));openModal('#sector-members-modal');
+ }));
+}
+
 document.querySelectorAll('[data-brand-family-filters]').forEach(container=>{
  const type=container.querySelector('[data-filter-type]'),brand=container.querySelector('[data-filter-brand]'),family=container.querySelector('[data-filter-family]'),model=container.querySelector('[data-filter-model]');if(!brand||!family)return;
  const sync=()=>{const typeId=type?.value||'',brandId=brand.value,familyId=family.value;Array.from(family.options).forEach(option=>{if(option.value)option.hidden=(!!typeId&&option.dataset.type!==typeId)||(!!brandId&&option.dataset.brand!==brandId)});if(family.selectedOptions[0]?.hidden)family.value='';if(model){Array.from(model.options).forEach(option=>{if(option.value)option.hidden=(!!typeId&&option.dataset.type!==typeId)||(!!brandId&&option.dataset.brand!==brandId)||(!!family.value&&option.dataset.family!==family.value)});if(model.selectedOptions[0]?.hidden)model.value=''}family._refreshSearchable?.();model?._refreshSearchable?.()};
@@ -163,9 +258,11 @@ const bindSelectionSearch=(input,grid,itemSelector)=>{
  });
  filter();
 };
+bindSelectionSearch(document.querySelector('[data-brand-selection-search]'),document.querySelector('[data-brand-selection]'),'label');
 bindSelectionSearch(document.querySelector('[data-family-selection-search]'),document.querySelector('[data-family-selection]'),'label');
 bindSelectionSearch(document.querySelector('[data-model-selection-search]'),document.querySelector('[data-model-selection]'),'[data-model-label]');
 bindSelectionSearch(document.querySelector('[data-partner-selection-search]'),document.querySelector('[data-partner-selection]'),'[data-partner-label]');
+bindSelectionSearch(document.querySelector('[data-user-brand-search]'),document.querySelector('[data-user-brand-list]'),'label');
 
 const companyForm=document.querySelector('[data-company-form]');
 if(companyForm){
@@ -187,15 +284,15 @@ if(userAccessForm){
  const companyGroup=row=>row.dataset.companyType==='cliente'?'cliente':'volkswagen';
  const syncMembership=row=>{const check=row.querySelector('[data-user-company-check]'),select=row.querySelector('[data-user-company-profile]'),companyType=row.dataset.companyType;select.disabled=!check.checked;select.required=check.checked;Array.from(select.options).forEach(option=>{if(!option.value)return;const type=option.dataset.profileType;option.hidden=type!=='qualquer'&&type!==companyType&&!(type==='vwco'&&companyType==='concessionaria')});if(check.checked&&select.selectedOptions[0]?.hidden)select.value=''};
  const applyUserTypeFilter=(clearHidden=false)=>{const selected=typeFilter?.value||'todos';userAccessForm.querySelectorAll('[data-user-company]').forEach(row=>{const hidden=selected!=='todos'&&companyGroup(row)!==selected;row.classList.toggle('type-filtered',hidden);if(hidden&&clearHidden){const check=row.querySelector('[data-user-company-check]'),profile=row.querySelector('[data-user-company-profile]');check.checked=false;profile.value='';syncMembership(row)}})};
- const protectOwnAccess=own=>{if(selfNote)selfNote.hidden=!own;if(activeInput)activeInput.disabled=own;userAccessForm.querySelectorAll('[data-user-company-profile]').forEach(select=>{if(clientContext&&own){select.disabled=true;select.required=false}else syncMembership(select.closest('[data-user-company]'))})};
- const resetUser=()=>{userAccessForm.reset();showUserPhoto('');userAccessForm.querySelector('[name="action"]').value='create';userAccessForm.querySelector('[name="id"]').value='';activeInput.checked=true;activeInput.disabled=false;const rows=Array.from(userAccessForm.querySelectorAll('[data-user-company]'));if(typeFilter)typeFilter.value=rows.some(row=>companyGroup(row)==='volkswagen')?'volkswagen':'cliente';rows.forEach(row=>{row.classList.remove('selection-filtered','type-filtered');const check=row.querySelector('[data-user-company-check]');if(check.dataset.companyLocked)check.checked=true;syncMembership(row)});protectOwnAccess(false);applyUserTypeFilter();document.querySelector('[data-user-modal-title]').textContent='Novo usuário'};
+ const protectOwnAccess=own=>{if(selfNote)selfNote.hidden=!own;if(activeInput)activeInput.disabled=own;userAccessForm.querySelectorAll('[data-user-brand]').forEach(input=>input.disabled=own);userAccessForm.querySelectorAll('[data-user-company-profile]').forEach(select=>{if(clientContext&&own){select.disabled=true;select.required=false}else syncMembership(select.closest('[data-user-company]'))})};
+ const resetUser=()=>{userAccessForm.reset();showUserPhoto('');userAccessForm.querySelector('[name="action"]').value='create';userAccessForm.querySelector('[name="id"]').value='';activeInput.checked=true;activeInput.disabled=false;userAccessForm.querySelectorAll('[data-user-brand]').forEach(input=>{input.checked=true;input.disabled=false});const brandSearch=userAccessForm.querySelector('[data-user-brand-search]');if(brandSearch){brandSearch.value='';brandSearch.dispatchEvent(new Event('input',{bubbles:true}))}const rows=Array.from(userAccessForm.querySelectorAll('[data-user-company]'));if(typeFilter)typeFilter.value=rows.some(row=>companyGroup(row)==='volkswagen')?'volkswagen':'cliente';rows.forEach(row=>{row.classList.remove('selection-filtered','type-filtered');const check=row.querySelector('[data-user-company-check]');if(check.dataset.companyLocked)check.checked=true;syncMembership(row)});protectOwnAccess(false);applyUserTypeFilter();document.querySelector('[data-user-modal-title]').textContent='Novo usuário'};
  userAccessForm.querySelector('[data-user-photo]')?.addEventListener('change',event=>{const file=event.target.files?.[0];if(file)showUserPhoto(URL.createObjectURL(file))});
  typeFilter?.addEventListener('change',()=>applyUserTypeFilter(true));
  userAccessForm.querySelectorAll('[data-user-company-check]').forEach(check=>check.addEventListener('change',()=>{if(check.dataset.companyLocked)check.checked=true;syncMembership(check.closest('[data-user-company]'))}));
  document.querySelector('[data-user-company-search]')?.addEventListener('input',event=>{const query=normalizeSearch(event.target.value);userAccessForm.querySelectorAll('[data-user-company]').forEach(row=>row.classList.toggle('selection-filtered',!!query&&!normalizeSearch(row.dataset.searchText).includes(query)))});
  document.querySelector('[data-user-company-search]')?.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();event.stopPropagation()}if(event.key==='Escape'){event.preventDefault();event.target.value='';event.target.dispatchEvent(new Event('input'))}});
  document.querySelector('[data-user-create]')?.addEventListener('click',()=>{resetUser();openModal('#user-modal')});
- document.querySelectorAll('[data-user-edit]').forEach(button=>button.addEventListener('click',()=>{resetUser();const data=JSON.parse(button.dataset.user||'{}');userAccessForm.querySelector('[name="action"]').value='update';userAccessForm.querySelector('[name="id"]').value=data.id;userAccessForm.querySelector('[name="nome"]').value=data.nome||'';userAccessForm.querySelector('[name="email"]').value=data.email||'';showUserPhoto(data.foto_url||'');activeInput.checked=!!Number(data.ativo);const selectedGroups=new Set;Object.entries(data.vinculos||{}).forEach(([companyId,profileId])=>{const check=userAccessForm.querySelector(`[data-user-company-check][value="${companyId}"]`);if(!check)return;check.checked=true;const row=check.closest('[data-user-company]');selectedGroups.add(companyGroup(row));syncMembership(row);row.querySelector('[data-user-company-profile]').value=profileId});if(typeFilter)typeFilter.value=selectedGroups.size>1?'todos':(Array.from(selectedGroups)[0]||typeFilter.value);applyUserTypeFilter();protectOwnAccess(clientContext&&!!data.proprio);document.querySelector('[data-user-modal-title]').textContent=data.proprio?'Editar meus dados':'Editar usuário';openModal('#user-modal')}));
+ document.querySelectorAll('[data-user-edit]').forEach(button=>button.addEventListener('click',()=>{resetUser();const data=JSON.parse(button.dataset.user||'{}');userAccessForm.querySelector('[name="action"]').value='update';userAccessForm.querySelector('[name="id"]').value=data.id;userAccessForm.querySelector('[name="nome"]').value=data.nome||'';userAccessForm.querySelector('[name="email"]').value=data.email||'';showUserPhoto(data.foto_url||'');activeInput.checked=!!Number(data.ativo);const brands=(data.marcas||[]).map(String);userAccessForm.querySelectorAll('[data-user-brand]').forEach(input=>input.checked=brands.includes(input.value));const selectedGroups=new Set;Object.entries(data.vinculos||{}).forEach(([companyId,profileId])=>{const check=userAccessForm.querySelector(`[data-user-company-check][value="${companyId}"]`);if(!check)return;check.checked=true;const row=check.closest('[data-user-company]');selectedGroups.add(companyGroup(row));syncMembership(row);row.querySelector('[data-user-company-profile]').value=profileId});if(typeFilter)typeFilter.value=selectedGroups.size>1?'todos':(Array.from(selectedGroups)[0]||typeFilter.value);applyUserTypeFilter();protectOwnAccess(!!data.proprio);document.querySelector('[data-user-modal-title]').textContent=data.proprio?'Editar meus dados':'Editar usuário';openModal('#user-modal')}));
  document.querySelectorAll('[data-user-delete]').forEach(button=>button.addEventListener('click',()=>{document.querySelector('[data-delete-user-id]').value=button.dataset.id;document.querySelector('[data-delete-user-name]').textContent=button.dataset.name;openModal('#delete-user-modal')}));
 }
 

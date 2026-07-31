@@ -60,6 +60,35 @@ document.querySelectorAll('[data-open-form]').forEach(b=>b.addEventListener('cli
 document.querySelectorAll('[data-video-title]').forEach(b=>b.addEventListener('click',()=>{document.querySelector('#modal-video-title').textContent=b.dataset.videoTitle;openModal('#video-modal')}));
 document.querySelectorAll('[data-modal-close]').forEach(b=>b.addEventListener('click',()=>closeModal(b.closest('.modal'))));
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m)}));
+const globalConfirmModal=document.querySelector('#global-confirm-modal');
+if(globalConfirmModal){
+ const title=globalConfirmModal.querySelector('[data-global-confirm-title]'),message=globalConfirmModal.querySelector('[data-global-confirm-message]'),confirmButton=globalConfirmModal.querySelector('[data-global-confirm-submit]'),confirmLabel=confirmButton.querySelector('span');
+ const approvedForms=new WeakSet();let pendingForm=null,pendingSubmitter=null;
+ const destructiveAction=/^(delete(?:_|$)|remove(?:_|$)|unlink(?:_|$)|destroy(?:_|$)|deactivate(?:_|$)|archive(?:_|$))/i;
+ const closeConfirmation=()=>{closeModal(globalConfirmModal);pendingForm=null;pendingSubmitter=null};
+ const confirmationCopy=(action,label)=>{
+  if(/^unlink/i.test(action))return ['Desvincular registro?',`${label||'Este vínculo'} será removido. Os históricos existentes serão preservados.`,'Desvincular','bi-link-45deg'];
+  if(/^remove/i.test(action))return ['Remover registro?',`${label||'Este registro'} será removido. Confirme para continuar.`,'Remover','bi-trash'];
+  if(/^archive|^deactivate/i.test(action))return ['Desativar registro?',`${label||'Este registro'} deixará de ficar disponível, mas seu histórico será preservado.`,'Desativar','bi-archive'];
+  return ['Excluir registro?',`${label||'Este registro'} será excluído. Confirme somente se deseja realmente continuar.`,'Excluir','bi-trash'];
+ };
+ document.addEventListener('submit',event=>{
+  const form=event.target;if(!(form instanceof HTMLFormElement)||form.closest('.confirm-dialog'))return;
+  if(approvedForms.has(form)){approvedForms.delete(form);return}
+  const submitter=event.submitter,action=String((submitter?.name==='action'?submitter.value:form.querySelector('[name="action"]')?.value)||'');
+  if(!destructiveAction.test(action))return;
+  event.preventDefault();event.stopImmediatePropagation();pendingForm=form;pendingSubmitter=submitter;
+  const accessibleLabel=submitter?.getAttribute('aria-label')||submitter?.getAttribute('title')||submitter?.textContent?.trim()||'';
+  const [heading,copy,buttonText,icon]=confirmationCopy(action,accessibleLabel);
+  title.textContent=heading;message.textContent=copy;confirmLabel.textContent=buttonText;confirmButton.querySelector('i').className=`bi ${icon}`;openModal('#global-confirm-modal');
+ },true);
+ globalConfirmModal.querySelectorAll('[data-global-confirm-close]').forEach(button=>button.addEventListener('click',closeConfirmation));
+ confirmButton.addEventListener('click',()=>{
+  if(!pendingForm)return;
+  const form=pendingForm,submitter=pendingSubmitter;approvedForms.add(form);closeModal(globalConfirmModal);pendingForm=null;pendingSubmitter=null;
+  if(submitter&&submitter.form===form)form.requestSubmit(submitter);else form.requestSubmit();
+ });
+}
 document.querySelector('[data-table-search]')?.addEventListener('input',e=>{if(document.querySelector('[data-status-filter]'))return applyFamilyFilters();const q=e.target.value.toLowerCase();document.querySelectorAll('[data-search-row]').forEach(r=>r.style.display=r.textContent.toLowerCase().includes(q)?'':'none')});
 document.querySelectorAll('[data-demo-form]').forEach(f=>f.addEventListener('submit',e=>{e.preventDefault();const t=document.querySelector('#toast');t.textContent='Cadastro salvo com sucesso no modo demonstração.';t.classList.add('show');closeModal(f.closest('.modal'));setTimeout(()=>t.classList.remove('show'),3000)}));
 document.querySelectorAll('.stars button').forEach((b,i,all)=>b.addEventListener('click',()=>{all.forEach((x,j)=>x.style.opacity=j<=i?'1':'.25')}));
@@ -229,6 +258,11 @@ const searchableTargets=[
  ,['.service-workflow select[name="setor_id"]','Pesquisar setor...']
  ,['.service-workflow select[name="responsavel_id"]','Pesquisar responsável...']
  ,['.service-workflow select[name="ticket_pai_id"]','Pesquisar ticket pai...']
+ ,['.service-create-form select[name="empresa_id"]','Pesquisar empresa...']
+ ,['.service-create-form select[name="tipo_veiculo"]','Pesquisar tipo...']
+ ,['.service-create-form select[name="marca_id"]','Pesquisar marca...']
+ ,['.service-create-form select[name="familia_id"]','Pesquisar família...']
+ ,['.service-create-form select[name="modelo_id"]','Pesquisar modelo...']
  ,['[data-service-detail] select','Pesquisar opção...']
  ,['[data-priority-form] select','Pesquisar opção...']
  ,['.table-filters select','Pesquisar filtro...']
@@ -395,6 +429,29 @@ if(libraryModal){
  document.querySelectorAll('.category-pill').forEach(pill=>pill.addEventListener('click',event=>{event.preventDefault();libraryCategory.value=new URL(pill.href).searchParams.get('categoria')||'';libraryCategory._refreshSearchable?.();applyLibraryFilters()}));
  let clearLibrary=filterForm?.querySelector('a[aria-label="Limpar filtros"]');if(!clearLibrary&&filterForm){clearLibrary=document.createElement('button');clearLibrary.type='button';clearLibrary.className='btn secondary';clearLibrary.setAttribute('aria-label','Limpar filtros');clearLibrary.innerHTML='<i class="bi bi-x-lg"></i>';filterForm.append(clearLibrary)}clearLibrary?.addEventListener('click',event=>{event.preventDefault();filterForm.reset();filterForm.querySelectorAll('select').forEach(select=>select._refreshSearchable?.());applyLibraryFilters()});
  applyLibraryFilters();
+}
+
+const serviceCreateForm=document.querySelector('[data-service-create-form]');
+if(serviceCreateForm){
+ const backdrop=document.querySelector('[data-service-create-backdrop]'),modal=document.querySelector('[data-service-create-modal]'),steps=[...serviceCreateForm.querySelectorAll('[data-service-step]')],stepButtons=[...serviceCreateForm.querySelectorAll('[data-service-step-button]')];
+ const prev=serviceCreateForm.querySelector('[data-service-prev]'),next=serviceCreateForm.querySelector('[data-service-next]'),submit=serviceCreateForm.querySelector('[data-service-submit]'),draft=serviceCreateForm.querySelector('[data-service-draft-save]'),mode=serviceCreateForm.querySelector('[name="submission_mode"]');
+ const originInputs=[...serviceCreateForm.querySelectorAll('[name="origem_item"]')],vehicleFields=serviceCreateForm.querySelector('[data-service-vehicle-fields]'),systemFields=serviceCreateForm.querySelector('[data-service-system-fields]');
+ const vehicleType=serviceCreateForm.querySelector('[name="tipo_veiculo"]'),brand=serviceCreateForm.querySelector('[name="marca_id"]'),family=serviceCreateForm.querySelector('[name="familia_id"]'),model=serviceCreateForm.querySelector('[name="modelo_id"]'),files=serviceCreateForm.querySelector('[data-service-files]'),fileList=serviceCreateForm.querySelector('[data-service-file-list]');
+ let currentStep=1;
+ const setStep=step=>{currentStep=Math.max(1,Math.min(3,step));steps.forEach(item=>item.classList.toggle('active',Number(item.dataset.serviceStep)===currentStep));stepButtons.forEach(item=>item.classList.toggle('active',Number(item.dataset.serviceStepButton)<=currentStep));prev.hidden=currentStep===1;next.hidden=currentStep===3;submit.hidden=currentStep!==3};
+ const syncOrigin=()=>{const vehicle=serviceCreateForm.querySelector('[name="origem_item"]:checked')?.value==='veiculo';vehicleFields.hidden=!vehicle;systemFields.hidden=vehicle};
+ const filterCatalog=()=>{const type=vehicleType.value,brandId=brand.value,familyId=family.value;[...family.options].forEach(option=>{if(!option.value)return;option.hidden=(!!brandId&&option.dataset.brand!==brandId)||(!!type&&option.dataset.vehicleType!==type)});if(family.selectedOptions[0]?.hidden)family.value='';[...model.options].forEach(option=>{if(!option.value)return;option.hidden=(!!family.value&&option.dataset.family!==family.value)||(!!brandId&&option.dataset.brand!==brandId)||(!!type&&option.dataset.vehicleType!==type)});if(model.selectedOptions[0]?.hidden)model.value='';[family,model].forEach(select=>select._refreshSearchable?.())};
+ const reset=()=>{serviceCreateForm.reset();serviceCreateForm.querySelector('[name="id"]').value='';mode.value='submit';document.querySelector('[data-service-create-title]').textContent='Abrir chamado';fileList.textContent='';syncOrigin();filterCatalog();serviceCreateForm.querySelectorAll('select').forEach(select=>select._refreshSearchable?.());setStep(1)};
+ const open=()=>{backdrop.hidden=false;backdrop.classList.add('open');document.body.style.overflow='hidden';setTimeout(()=>serviceCreateForm.querySelector('input,select')?.focus(),80)};
+ const close=()=>{backdrop.classList.remove('open');backdrop.hidden=true;document.body.style.overflow=''};
+ const validateStep=()=>{const active=steps[currentStep-1],origin=serviceCreateForm.querySelector('[name="origem_item"]:checked')?.value;if(currentStep===1&&!serviceCreateForm.querySelector('[name="empresa_id"]').value){serviceCreateForm.querySelector('[name="empresa_id"]')._refreshSearchable?.();return false}if(currentStep===2&&origin==='veiculo'){for(const field of [brand,family,model])if(!field.value){field._refreshSearchable?.();field.closest('.searchable-select')?.querySelector('input')?.focus();return false}}return [...active.querySelectorAll('[required]')].every(field=>field.reportValidity())};
+ document.querySelectorAll('[data-service-create-open]').forEach(button=>button.addEventListener('click',()=>{reset();open()}));
+ document.querySelectorAll('[data-service-create-close]').forEach(button=>button.addEventListener('click',close));backdrop.addEventListener('click',event=>{if(event.target===backdrop)close()});
+ next.addEventListener('click',()=>{if(validateStep())setStep(currentStep+1)});prev.addEventListener('click',()=>setStep(currentStep-1));stepButtons.forEach(button=>button.addEventListener('click',()=>{const target=Number(button.dataset.serviceStepButton);if(target<currentStep||validateStep())setStep(target)}));
+ originInputs.forEach(input=>input.addEventListener('change',syncOrigin));[vehicleType,brand,family].forEach(select=>select.addEventListener('change',filterCatalog));
+ files.addEventListener('change',()=>{fileList.innerHTML=[...files.files].map(file=>`<span><i class="bi bi-paperclip"></i>${file.name}</span>`).join('')});
+ draft.addEventListener('click',()=>{mode.value='draft';serviceCreateForm.noValidate=true;serviceCreateForm.requestSubmit()});submit.addEventListener('click',()=>{mode.value='submit';serviceCreateForm.noValidate=false});
+ document.querySelectorAll('[data-service-draft]').forEach(button=>button.addEventListener('click',()=>{reset();const data=JSON.parse(button.dataset.serviceDraft||'{}');Object.entries(data).forEach(([name,value])=>{const field=serviceCreateForm.querySelector(`[name="${name}"]`);if(!field)return;if(field.type==='radio'){serviceCreateForm.querySelector(`[name="${name}"][value="${value}"]`)?.click()}else field.value=value??''});document.querySelector('[data-service-create-title]').textContent='Continuar rascunho';syncOrigin();filterCatalog();serviceCreateForm.querySelectorAll('select').forEach(select=>select._refreshSearchable?.());open()}));
 }
 
 const serviceDetail=document.querySelector('[data-service-detail]');

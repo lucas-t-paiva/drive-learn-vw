@@ -6,9 +6,18 @@ function service_desk_internal_user(): bool
     return is_master() || in_array((string)(user()['active_company_type'] ?? ''), ['vwco','concessionaria'], true);
 }
 
+function service_desk_can_manage(): bool
+{
+    $role=(string)(user()['role_slug']??'');
+    if(is_master())return true;
+    if(in_array($role,['coordenacao','cliente','colaborador-cliente','colaborador-vwco'],true))return false;
+    return service_desk_internal_user()&&can('service_desk','update');
+}
+
 function service_desk_statuses(): array
 {
     return [
+        'rascunho'=>'Rascunho',
         'novo'=>'Novo',
         'transferido'=>'Transferido para a área responsável',
         'em_tratamento'=>'Em tratamento',
@@ -54,15 +63,200 @@ function service_desk_priority_for_classification(PDO $pdo,array $category,strin
 function service_desk_access_clause(array &$params, string $alias='sr'): string
 {
     $current=user();
-    if(is_master() && !active_company_id()) return '1=1';
+    $role=(string)($current['role_slug']??'');
+    $level=(int)($current['role_level']??0);
+    if(is_master()||$role==='coordenacao')return '1=1';
     if(($current['active_company_type']??'')==='cliente'){
+        if($role==='colaborador-cliente'||$level<60){
+            $params[]=(int)($current['id']??0);
+            return "{$alias}.usuario_id=?";
+        }
         $params[]=active_company_id()?:0;
         return "{$alias}.empresa_cliente_id=?";
     }
+    if($role==='colaborador-vwco'){
+        $params[]=(int)($current['id']??0);
+        return "{$alias}.usuario_id=?";
+    }
     $ids=accessible_client_company_ids();
+    if(active_company_id())$ids[]=(int)active_company_id();
+    $ids=array_values(array_unique(array_filter(array_map('intval',$ids))));
     if(!$ids)return '1=0';
     $params=array_merge($params,$ids);
     return "{$alias}.empresa_cliente_id IN (".implode(',',array_fill(0,count($ids),'?')).')';
+}
+
+function service_desk_allowed_companies(PDO $pdo): array
+{
+    $current=user();$role=(string)($current['role_slug']??'');
+    if(is_master()||$role==='coordenacao')return $pdo->query('SELECT id,nome_fantasia,tipo FROM empresas WHERE ativo=1 ORDER BY tipo,nome_fantasia')->fetchAll();
+    if(($current['active_company_type']??'')==='cliente'||$role==='colaborador-vwco'){
+        $id=(int)(active_company_id()??0);
+        if(!$id)return [];
+        $stmt=$pdo->prepare('SELECT id,nome_fantasia,tipo FROM empresas WHERE id=? AND ativo=1');$stmt->execute([$id]);
+        return $stmt->fetchAll();
+    }
+    $ids=accessible_client_company_ids();
+    if(active_company_id())$ids[]=(int)active_company_id();
+    $ids=array_values(array_unique(array_filter(array_map('intval',$ids))));
+    if(!$ids)return [];
+    $marks=implode(',',array_fill(0,count($ids),'?'));
+    $stmt=$pdo->prepare("SELECT id,nome_fantasia,tipo FROM empresas WHERE id IN ({$marks}) AND ativo=1 ORDER BY tipo,nome_fantasia");$stmt->execute($ids);
+    return $stmt->fetchAll();
+}
+
+function service_desk_company_allowed(PDO $pdo,int $companyId): bool
+{
+    foreach(service_desk_allowed_companies($pdo) as $company)if((int)$company['id']===$companyId)return true;
+    return false;
+}
+
+function service_desk_attachments_ready(PDO $pdo): bool
+{
+    try{$pdo->query('SELECT 1 FROM service_report_attachments LIMIT 1');return true;}catch(Throwable){return false;}
+}
+
+function service_desk_normalize_uploads(array $input): array
+{
+    if(!isset($input['name']))return [];
+    if(!is_array($input['name']))return [$input];
+    $files=[];
+    foreach($input['name'] as $index=>$name)$files[]=[
+        'name'=>$name,
+        'type'=>$input['type'][$index]??'',
+        'tmp_name'=>$input['tmp_name'][$index]??'',
+        'error'=>$input['error'][$index]??UPLOAD_ERR_NO_FILE,
+        'size'=>$input['size'][$index]??0,
+    ];
+    return $files;
+}
+
+function service_desk_upload_definition(string $mime): ?array
+{
+    $definitions=[
+        'image/jpeg'=>['imagem','jpg',8*1024*1024],'image/png'=>['imagem','png',8*1024*1024],'image/webp'=>['imagem','webp',8*1024*1024],
+        'video/mp4'=>['video','mp4',50*1024*1024],'video/webm'=>['video','webm',50*1024*1024],'video/quicktime'=>['video','mov',50*1024*1024],
+        'audio/mpeg'=>['audio','mp3',20*1024*1024],'audio/mp4'=>['audio','m4a',20*1024*1024],'audio/x-m4a'=>['audio','m4a',20*1024*1024],
+        'audio/wav'=>['audio','wav',20*1024*1024],'audio/x-wav'=>['audio','wav',20*1024*1024],'audio/ogg'=>['audio','ogg',20*1024*1024],'audio/webm'=>['audio','webm',20*1024*1024],
+        'application/pdf'=>['documento','pdf',20*1024*1024],'text/plain'=>['documento','txt',5*1024*1024],
+        'application/msword'=>['documento','doc',20*1024*1024],
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'=>['documento','docx',20*1024*1024],
+        'application/vnd.ms-excel'=>['documento','xls',20*1024*1024],
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'=>['documento','xlsx',20*1024*1024],
+    ];
+    return $definitions[$mime]??null;
+}
+
+function service_desk_store_attachments(PDO $pdo,int $reportId,array $input,string $context='abertura',?int $messageId=null): array
+{
+    if(!service_desk_attachments_ready($pdo))throw new RuntimeException('Execute a migração 20260730_024 para habilitar anexos.');
+    $files=service_desk_normalize_uploads($input);$stored=[];$moved=[];
+    if(!$files)return [];
+    $root=dirname(__DIR__).'/public/assets/uploads/service-desk/'.$reportId;
+    if(!is_dir($root)&&!mkdir($root,0775,true)&&!is_dir($root))throw new RuntimeException('Não foi possível preparar a pasta de anexos.');
+    try{
+        $finfo=new finfo(FILEINFO_MIME_TYPE);
+        $insert=$pdo->prepare('INSERT INTO service_report_attachments(report_id,message_id,usuario_id,contexto,tipo,nome_original,caminho,mime,tamanho) VALUES(?,?,?,?,?,?,?,?,?)');
+        foreach($files as $file){
+            $error=(int)($file['error']??UPLOAD_ERR_NO_FILE);if($error===UPLOAD_ERR_NO_FILE)continue;
+            if($error!==UPLOAD_ERR_OK)throw new RuntimeException('Não foi possível receber um dos anexos.');
+            $tmp=(string)($file['tmp_name']??'');$mime=(string)$finfo->file($tmp);$definition=service_desk_upload_definition($mime);
+            if(!$definition)throw new RuntimeException('Formato de anexo não permitido. Utilize imagem, vídeo curto, áudio, PDF, Word, Excel ou TXT.');
+            [$type,$extension,$limit]=$definition;$size=(int)($file['size']??0);
+            if($size<1||$size>$limit)throw new RuntimeException('Um dos anexos ultrapassa o limite permitido para esse formato.');
+            $filename=bin2hex(random_bytes(18)).'.'.$extension;$absolute=$root.'/'.$filename;
+            if(!move_uploaded_file($tmp,$absolute))throw new RuntimeException('Não foi possível salvar um dos anexos.');
+            $moved[]=$absolute;$relative='/public/assets/uploads/service-desk/'.$reportId.'/'.$filename;
+            $original=mb_substr(basename((string)$file['name']),0,255);
+            $insert->execute([$reportId,$messageId,(int)(user()['id']??0),$context,$type,$original,$relative,$mime,$size]);
+            $stored[]=['path'=>$relative,'name'=>$original,'type'=>$type];
+        }
+        return $stored;
+    }catch(Throwable $e){
+        foreach($moved as $path)if(is_file($path))@unlink($path);
+        throw $e;
+    }
+}
+
+function service_desk_clear_staged_attachments(): void
+{
+    foreach((array)($_SESSION['service_desk_staged_attachments']??[]) as $file)if(is_file((string)($file['absolute']??'')))@unlink($file['absolute']);
+    unset($_SESSION['service_desk_staged_attachments']);
+}
+
+function service_desk_stage_chat_attachments(array $input): int
+{
+    $files=service_desk_normalize_uploads($input);if(!$files)return 0;
+    $root=dirname(__DIR__).'/storage/service-desk-temp/'.hash('sha256',session_id());
+    if(!is_dir($root)&&!mkdir($root,0775,true)&&!is_dir($root))throw new RuntimeException('Não foi possível preparar os anexos do assistente.');
+    $finfo=new finfo(FILEINFO_MIME_TYPE);$staged=(array)($_SESSION['service_desk_staged_attachments']??[]);
+    foreach($files as $file){
+        $error=(int)($file['error']??UPLOAD_ERR_NO_FILE);if($error===UPLOAD_ERR_NO_FILE)continue;if($error!==UPLOAD_ERR_OK)throw new RuntimeException('Não foi possível receber um dos anexos.');
+        $mime=(string)$finfo->file((string)$file['tmp_name']);$definition=service_desk_upload_definition($mime);
+        if(!$definition)throw new RuntimeException('Formato de anexo não permitido no assistente.');
+        [$type,$extension,$limit]=$definition;$size=(int)$file['size'];if($size<1||$size>$limit)throw new RuntimeException('Um anexo ultrapassa o limite permitido.');
+        $absolute=$root.'/'.bin2hex(random_bytes(16)).'.'.$extension;if(!move_uploaded_file((string)$file['tmp_name'],$absolute))throw new RuntimeException('Não foi possível guardar o anexo temporário.');
+        $staged[]=['absolute'=>$absolute,'name'=>mb_substr(basename((string)$file['name']),0,255),'type'=>$type,'mime'=>$mime,'size'=>$size,'extension'=>$extension];
+    }
+    $_SESSION['service_desk_staged_attachments']=$staged;return count($staged);
+}
+
+function service_desk_commit_staged_attachments(PDO $pdo,int $reportId): void
+{
+    $staged=(array)($_SESSION['service_desk_staged_attachments']??[]);if(!$staged)return;
+    if(!service_desk_attachments_ready($pdo))throw new RuntimeException('Execute a migração 20260730_024 para habilitar anexos.');
+    $root=dirname(__DIR__).'/public/assets/uploads/service-desk/'.$reportId;if(!is_dir($root)&&!mkdir($root,0775,true)&&!is_dir($root))throw new RuntimeException('Não foi possível preparar a pasta do chamado.');
+    $insert=$pdo->prepare('INSERT INTO service_report_attachments(report_id,usuario_id,contexto,tipo,nome_original,caminho,mime,tamanho) VALUES(?,?,?,?,?,?,?,?)');
+    foreach($staged as $file){$filename=bin2hex(random_bytes(18)).'.'.$file['extension'];$destination=$root.'/'.$filename;if(!rename($file['absolute'],$destination))throw new RuntimeException('Não foi possível vincular o anexo ao chamado.');$insert->execute([$reportId,(int)(user()['id']??0),'assistente',$file['type'],$file['name'],'/public/assets/uploads/service-desk/'.$reportId.'/'.$filename,$file['mime'],$file['size']]);}
+    unset($_SESSION['service_desk_staged_attachments']);
+}
+
+function service_desk_manual_save(PDO $pdo): array
+{
+    if(!can('service_desk','create'))throw new RuntimeException('Seu perfil não permite criar chamados.');
+    $id=(int)($_POST['id']??0);$mode=(string)($_POST['submission_mode']??'submit');$draft=$mode==='draft';
+    $companyId=(int)($_POST['empresa_id']??0);$type=(string)($_POST['tipo']??'falha');$origin=(string)($_POST['origem_item']??'veiculo');
+    $brandId=(int)($_POST['marca_id']??0);$familyId=(int)($_POST['familia_id']??0);$modelId=(int)($_POST['modelo_id']??0);
+    $title=trim((string)($_POST['titulo']??''));$description=trim((string)($_POST['relato']??''));
+    if(!$companyId||!service_desk_company_allowed($pdo,$companyId))throw new RuntimeException('Selecione uma empresa disponível no seu escopo.');
+    if(!in_array($type,['falha','melhoria'],true))throw new RuntimeException('Selecione Falha ou Melhoria.');
+    if(!in_array($origin,['veiculo','sistema'],true))throw new RuntimeException('Selecione se o relato é sobre veículo ou sistema.');
+    if(!$draft&&($title===''||mb_strlen($description)<10))throw new RuntimeException('Informe um título e descreva a situação com pelo menos 10 caracteres.');
+    if($origin==='veiculo'&&!$draft&&(!$brandId||!$familyId||!$modelId))throw new RuntimeException('Identifique marca, família e modelo do veículo.');
+    if($origin==='veiculo'&&($brandId||$familyId||$modelId)){
+        $valid=$pdo->prepare('SELECT m.id FROM modelos m JOIN familias f ON f.id=m.familia_id WHERE m.id=? AND f.id=? AND f.marca_id=? AND m.ativo=1 AND f.ativo=1');
+        $valid->execute([$modelId,$familyId,$brandId]);
+        if(!$draft&&!$valid->fetchColumn())throw new RuntimeException('O modelo não pertence à família e à marca selecionadas.');
+    }else{$brandId=$familyId=$modelId=0;}
+    $group=service_desk_group_for_type($type);
+    $classification=$origin==='sistema'?service_desk_system_category($pdo,$description,$type):service_desk_classify($pdo,$description,$type);
+    $priority=service_desk_priority_for_classification($pdo,$classification,$type,(string)($classification['criticidade']??'media'));
+    $status=$draft?'rascunho':'novo';$now=date('Y-m-d H:i:s');
+    $slaFirst=$draft?null:date('Y-m-d H:i:s',time()+((int)$priority['sla_primeira_interacao_minutos']*60));
+    $slaResolution=$draft?null:date('Y-m-d H:i:s',time()+((int)$priority['sla_resolucao_minutos']*60));
+    $pdo->beginTransaction();
+    try{
+        if($id){
+            $find=$pdo->prepare("SELECT * FROM service_reports WHERE id=? AND usuario_id=? AND status='rascunho'");$find->execute([$id,(int)(user()['id']??0)]);$current=$find->fetch();
+            if(!$current&&!is_master())throw new RuntimeException('Este rascunho não está disponível para edição.');
+            if(!$current&&is_master()){$find=$pdo->prepare("SELECT * FROM service_reports WHERE id=? AND status='rascunho'");$find->execute([$id]);$current=$find->fetch();}
+            if(!$current)throw new RuntimeException('Rascunho não encontrado.');
+            $pdo->prepare('UPDATE service_reports SET empresa_cliente_id=?,marca_id=?,familia_id=?,modelo_id=?,setor_id=?,categoria_id=?,prioridade_id=?,grupo=?,origem_item=?,tipo=?,canal="texto",titulo=?,relato_original=?,relato_normalizado=?,resumo_triagem=?,criticidade=?,status=?,sla_primeira_resposta_em=?,sla_resolucao_em=? WHERE id=?')
+                ->execute([$companyId,$brandId?:null,$familyId?:null,$modelId?:null,$classification['setor_id']??null,$classification['id']??null,$priority['id']??null,$group,$origin,$type,$title?:'Rascunho sem título',$description,function_exists('assistant_normalize')?assistant_normalize($description):$description,$classification['resumo']??$description,$classification['criticidade']??'media',$status,$slaFirst,$slaResolution,$id]);
+        }else{
+            $pdo->prepare('INSERT INTO service_reports(usuario_id,empresa_cliente_id,marca_id,familia_id,modelo_id,setor_id,categoria_id,prioridade_id,grupo,origem_item,tipo,canal,titulo,relato_original,relato_normalizado,resumo_triagem,criticidade,status,sla_primeira_resposta_em,sla_resolucao_em) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+                ->execute([(int)(user()['id']??0),$companyId,$brandId?:null,$familyId?:null,$modelId?:null,$classification['setor_id']??null,$classification['id']??null,$priority['id']??null,$group,$origin,$type,'texto',$title?:'Rascunho sem título',$description,function_exists('assistant_normalize')?assistant_normalize($description):$description,$classification['resumo']??$description,$classification['criticidade']??'media',$status,$slaFirst,$slaResolution]);
+            $id=(int)$pdo->lastInsertId();
+        }
+        $protocol=($draft?'DR':($group==='incidente'?'RE':'RQ')).'-'.date('Ymd').'-'.str_pad((string)$id,6,'0',STR_PAD_LEFT);
+        $pdo->prepare('UPDATE service_reports SET protocolo=? WHERE id=?')->execute([$protocol,$id]);
+        $event=$draft?'rascunho_salvo':'criacao_manual';
+        $pdo->prepare('INSERT INTO service_report_history(report_id,usuario_id,evento,status_novo,setor_novo_id,observacao) VALUES(?,?,?,?,?,?)')->execute([$id,(int)(user()['id']??0),$event,$status,$classification['setor_id']??null,$draft?'Rascunho salvo para continuar depois.':'Chamado enviado pelo formulário do Service Desk.']);
+        if(!$draft)$pdo->prepare('INSERT INTO service_report_messages(report_id,usuario_id,origem,mensagem) VALUES(?,?,?,?)')->execute([$id,(int)(user()['id']??0),'usuario',$description]);
+        if(!empty($_FILES['anexos']))service_desk_store_attachments($pdo,$id,$_FILES['anexos'],'abertura');
+        $pdo->commit();
+        return ['id'=>$id,'protocol'=>$protocol,'draft'=>$draft];
+    }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
 }
 
 function service_desk_categorize(PDO $pdo,string $text,string $preferredType=''): array
@@ -174,6 +368,7 @@ function service_desk_create_from_flow(PDO $pdo,array $flow,string $inputType): 
         $message=$pdo->prepare('INSERT INTO service_report_messages(report_id,usuario_id,origem,mensagem,audio_segundos) VALUES(?,?,?,?,?)');
         foreach($flow['messages']??[] as $item)$message->execute([$id,$item['origin']==='usuario'?$userId:null,$item['origin'],$item['text'],(int)($item['audio_seconds']??0)]);
         $message->execute([$id,null,'sistema','Relato confirmado e protocolado pelo usuário.',0]);
+        service_desk_commit_staged_attachments($pdo,$id);
         $pdo->prepare('INSERT INTO service_report_history(report_id,usuario_id,evento,status_novo,setor_novo_id,observacao) VALUES(?,?,?, ?,?,?)')->execute([$id,$userId,'criacao','novo',$category['setor_id']??null,'Triagem conversacional confirmada pelo usuário.']);
         $pdo->commit();
         return ['id'=>$id,'protocol'=>$protocol];
@@ -404,10 +599,12 @@ function service_desk_assistant_flow(PDO $pdo,string $question,string $inputType
         elseif(preg_match('/^(nao|continuar|quero continuar)\b/',$normalizedQuestion))$action='close_no';
     }
     if($action==='start_consult'){
+        service_desk_clear_staged_attachments();
         unset($_SESSION['service_desk_flow'],$_SESSION['assistant_awaiting_close'],$_SESSION['assistant_rating_pending']);
         return ['answer'=>'Certo. Pergunte sobre um treinamento, função do veículo, ficha técnica, frota ou indicador da plataforma.','options'=>[]];
     }
     if($action==='start_report'){
+        service_desk_clear_staged_attachments();
         unset($_SESSION['assistant_awaiting_close'],$_SESSION['assistant_rating_pending']);
         $_SESSION['service_desk_flow']=['state'=>'type','messages'=>[['origin'=>'assistente','text'=>'O que você deseja registrar?']]];
         return ['answer'=>'O que você deseja registrar?','options'=>[
@@ -455,6 +652,7 @@ function service_desk_assistant_flow(PDO $pdo,string $question,string $inputType
         ]];
     }
     if($action==='report_cancel'){
+        service_desk_clear_staged_attachments();
         unset($_SESSION['service_desk_flow']);
         return ['answer'=>'Tudo bem, o relato foi cancelado e nada foi enviado. Posso ajudar em outra coisa?','ask_close'=>true];
     }
@@ -557,8 +755,12 @@ function handle_service_desk_post(string $route,string $method): void
     try{
         if(!$pdo||!database_ready())throw new RuntimeException('Banco de dados indisponível.');
         $action=(string)($_POST['action']??'');
-        if($action==='update_report'){
-            if(!can('service_desk','update')||!service_desk_internal_user())throw new RuntimeException('Seu perfil não permite tratar chamados.');
+        if($action==='save_manual_report'){
+            $saved=service_desk_manual_save($pdo);
+            flash('success',$saved['draft']?'Rascunho salvo. Você pode continuar quando quiser.':'Chamado '.$saved['protocol'].' criado com sucesso.');
+            $return='service-desk?id='.$saved['id'];
+        }elseif($action==='update_report'){
+            if(!service_desk_can_manage())throw new RuntimeException('Seu perfil não permite tratar chamados.');
             $id=(int)($_POST['id']??0);$status=(string)($_POST['status']??'novo');$sectorId=(int)($_POST['setor_id']??0);$responsibleId=(int)($_POST['responsavel_id']??0);$categoryId=(int)($_POST['categoria_id']??0);$priorityId=(int)($_POST['prioridade_id']??0);$type=(string)($_POST['tipo']??'falha');$recurring=isset($_POST['recorrente']);$parentId=$recurring?(int)($_POST['ticket_pai_id']??0):0;
             if(!isset(service_desk_statuses()[$status]))throw new RuntimeException('Selecione um status válido.');
             if(!isset(service_desk_types()[$type]))throw new RuntimeException('Selecione um tipo válido.');
@@ -589,17 +791,22 @@ function handle_service_desk_post(string $route,string $method): void
             $pdo->commit();flash('success','Chamado atualizado e histórico registrado.');
             $return='service-desk?id='.$id;
         }elseif($action==='add_interaction'){
-            $id=(int)($_POST['id']??0);$message=trim((string)($_POST['mensagem']??''));if($message==='')throw new RuntimeException('Escreva o comentário da interação.');
+            $id=(int)($_POST['id']??0);$message=trim((string)($_POST['mensagem']??''));
+            $hasFiles=!empty(array_filter((array)($_FILES['anexos']['name']??[])));
+            if($message===''&&!$hasFiles)throw new RuntimeException('Escreva um comentário ou adicione um anexo.');
             $params=[];$access=service_desk_access_clause($params);$find=$pdo->prepare("SELECT * FROM service_reports sr WHERE sr.id=? AND {$access}");$find->execute(array_merge([$id],$params));$current=$find->fetch();if(!$current)throw new RuntimeException('Chamado não encontrado.');
-            $internalInteraction=service_desk_internal_user()&&can('service_desk','update');$authorInteraction=(int)$current['usuario_id']===(int)(user()['id']??0);
+            $internalInteraction=service_desk_can_manage();$authorInteraction=(int)$current['usuario_id']===(int)(user()['id']??0);
             if(!$internalInteraction&&!$authorInteraction)throw new RuntimeException('Seu perfil não permite interagir neste chamado.');
             $pdo->beginTransaction();
+            $message=$message?:'Anexo adicionado ao chamado.';
             $pdo->prepare('INSERT INTO service_report_messages(report_id,usuario_id,origem,mensagem) VALUES(?,?,?,?)')->execute([$id,(int)user()['id'],$internalInteraction?'interno':'usuario',$message]);
+            $messageId=(int)$pdo->lastInsertId();
+            if($hasFiles)service_desk_store_attachments($pdo,$id,$_FILES['anexos'],'interacao',$messageId);
             $pdo->prepare('INSERT INTO service_report_history(report_id,usuario_id,evento,status_anterior,status_novo,observacao) VALUES(?,?,?,?,?,?)')->execute([$id,(int)user()['id'],'interacao',$current['status'],$current['status'],$message]);
             if($internalInteraction&&!$current['primeira_resposta_em'])$pdo->prepare('UPDATE service_reports SET primeira_resposta_em=NOW() WHERE id=?')->execute([$id]);
             $pdo->commit();flash('success','Interação registrada no histórico.');$return='service-desk?id='.$id.'&tab=timeline';
         }elseif($action==='add_solution'){
-            if(!can('service_desk','update')||!service_desk_internal_user())throw new RuntimeException('Seu perfil não permite registrar soluções.');
+            if(!service_desk_can_manage())throw new RuntimeException('Seu perfil não permite registrar soluções.');
             $id=(int)($_POST['id']??0);$solutionType=(string)($_POST['tipo_solucao']??'proposta');$description=trim((string)($_POST['descricao_solucao']??''));
             if(!in_array($solutionType,['proposta','aplicada'],true)||$description==='')throw new RuntimeException('Informe o tipo e a descrição da solução.');
             $params=[];$access=service_desk_access_clause($params);$find=$pdo->prepare("SELECT * FROM service_reports sr WHERE sr.id=? AND {$access}");$find->execute(array_merge([$id],$params));$current=$find->fetch();if(!$current)throw new RuntimeException('Chamado não encontrado.');
@@ -608,6 +815,14 @@ function handle_service_desk_post(string $route,string $method): void
             $field=$solutionType==='aplicada'?'solucao_final':'solucao_proposta';$pdo->prepare("UPDATE service_reports SET {$field}=? WHERE id=?")->execute([$description,$id]);
             $pdo->prepare('INSERT INTO service_report_history(report_id,usuario_id,evento,status_anterior,status_novo,observacao) VALUES(?,?,?,?,?,?)')->execute([$id,(int)user()['id'],$solutionType==='aplicada'?'solucao_aplicada':'solucao_proposta',$current['status'],$current['status'],$description]);
             $pdo->commit();flash('success',$solutionType==='aplicada'?'Solução aplicada registrada.':'Solução proposta registrada.');$return='service-desk?id='.$id.'&tab=solutions';
+        }elseif($action==='delete_report'){
+            if(!is_master()||!can('service_desk','delete'))throw new RuntimeException('Somente o Administrador Master pode excluir chamados.');
+            $id=(int)($_POST['id']??0);$paths=[];
+            if(service_desk_attachments_ready($pdo)){$files=$pdo->prepare('SELECT caminho FROM service_report_attachments WHERE report_id=?');$files->execute([$id]);$paths=$files->fetchAll(PDO::FETCH_COLUMN);}
+            $delete=$pdo->prepare('DELETE FROM service_reports WHERE id=?');$delete->execute([$id]);
+            if(!$delete->rowCount())throw new RuntimeException('Chamado não encontrado.');
+            foreach($paths as $relative){$absolute=dirname(__DIR__).'/'.ltrim((string)$relative,'/');if(is_file($absolute))@unlink($absolute);}
+            flash('success','Chamado excluído com sucesso.');$return='service-desk';
         }elseif($action==='satisfaction'){
             $id=(int)($_POST['id']??0);$note=max(1,min(5,(int)($_POST['nota']??0)));
             $find=$pdo->prepare('SELECT id FROM service_reports WHERE id=? AND usuario_id=? AND status="finalizado"');$find->execute([$id,(int)user()['id']]);if(!$find->fetchColumn())throw new RuntimeException('Este relato ainda não está disponível para avaliação.');
@@ -620,10 +835,12 @@ function handle_service_desk_post(string $route,string $method): void
 
 function load_service_desk_page(): array
 {
-    $pdo=db();$data=['ready'=>false,'reports'=>[],'selected'=>null,'counts'=>[],'filter_types'=>[],'filter_groups'=>[],'sectors'=>[],'filter_sectors'=>[],'users'=>[],'companies'=>[],'categories'=>[],'filter_categories'=>[],'priorities'=>[],'filter_priorities'=>[],'parent_tickets'=>[],'solutions'=>[],'total'=>0,'pages'=>1];
+    $pdo=db();$data=['ready'=>false,'attachments_ready'=>false,'reports'=>[],'selected'=>null,'counts'=>[],'filter_types'=>[],'filter_groups'=>[],'sectors'=>[],'filter_sectors'=>[],'users'=>[],'companies'=>[],'brands'=>[],'families'=>[],'models'=>[],'attachments'=>[],'categories'=>[],'filter_categories'=>[],'priorities'=>[],'filter_priorities'=>[],'parent_tickets'=>[],'solutions'=>[],'total'=>0,'pages'=>1];
     if(!$pdo)return $data;
     try{
-        $pdo->query('SELECT 1 FROM service_report_solutions LIMIT 1');$data['ready']=true;
+        $pdo->query('SELECT 1 FROM service_report_solutions LIMIT 1');$data['attachments_ready']=service_desk_attachments_ready($pdo);
+        if(!$data['attachments_ready'])return $data;
+        $data['ready']=true;
         [$page,$perPage,$offset]=pagination_params();
         $params=[];$access=service_desk_access_clause($params);$where=["{$access}"];
         $status=(string)($_GET['status']??'');$type=(string)($_GET['tipo']??'');$sector=(int)($_GET['setor']??0);$priorityId=(int)($_GET['prioridade']??0);$categoryId=(int)($_GET['categoria']??0);$group=(string)($_GET['grupo']??'');$q=trim((string)($_GET['q']??''));
@@ -637,12 +854,16 @@ function load_service_desk_page(): array
         $whereSql=' WHERE '.implode(' AND ',$where);
         $count=$pdo->prepare('SELECT COUNT(*) FROM service_reports sr'.$whereSql);$count->execute($params);$total=(int)$count->fetchColumn();
         $select='SELECT sr.*,u.nome usuario_nome,e.nome_fantasia empresa_nome,ma.nome marca_nome,f.nome familia_nome,m.nome modelo_nome,mc.nome categoria_nome,s.nome setor_nome,r.nome responsavel_nome,sp.codigo prioridade_codigo,sp.nome prioridade_nome,sp.cor prioridade_cor,pai.protocolo ticket_pai_protocolo FROM service_reports sr JOIN usuarios u ON u.id=sr.usuario_id LEFT JOIN empresas e ON e.id=sr.empresa_cliente_id LEFT JOIN marcas ma ON ma.id=sr.marca_id LEFT JOIN familias f ON f.id=sr.familia_id LEFT JOIN modelos m ON m.id=sr.modelo_id LEFT JOIN master_categories mc ON mc.id=sr.categoria_id LEFT JOIN setores s ON s.id=sr.setor_id LEFT JOIN usuarios r ON r.id=sr.responsavel_id LEFT JOIN service_priorities sp ON sp.id=sr.prioridade_id LEFT JOIN service_reports pai ON pai.id=sr.ticket_pai_id';
-        $sql=$select.$whereSql.' ORDER BY COALESCE(sp.ordem,99),FIELD(sr.status,"novo","transferido","em_tratamento","possivel_solucao","finalizado","cancelado"),sr.criado_em DESC LIMIT ? OFFSET ?';
+        $sql=$select.$whereSql.' ORDER BY FIELD(sr.status,"rascunho","novo","transferido","em_tratamento","possivel_solucao","finalizado","cancelado"),COALESCE(sp.ordem,99),sr.criado_em DESC LIMIT ? OFFSET ?';
         $stmt=$pdo->prepare($sql);foreach($params as $i=>$value)$stmt->bindValue($i+1,$value);$stmt->bindValue(count($params)+1,$perPage,PDO::PARAM_INT);$stmt->bindValue(count($params)+2,$offset,PDO::PARAM_INT);$stmt->execute();$data['reports']=$stmt->fetchAll();
         $countParams=[];$countAccess=service_desk_access_clause($countParams);$counts=$pdo->prepare("SELECT status,COUNT(*) total FROM service_reports sr WHERE {$countAccess} GROUP BY status");$counts->execute($countParams);foreach($counts->fetchAll() as $row)$data['counts'][$row['status']]=(int)$row['total'];
         $data['sectors']=$pdo->query('SELECT s.*,e.nome_fantasia empresa_nome FROM setores s LEFT JOIN empresas e ON e.id=s.empresa_id WHERE s.ativo=1 ORDER BY e.nome_fantasia,s.nome')->fetchAll();
         $data['categories']=$pdo->query('SELECT id,nome,tipo FROM master_categories WHERE ativo=1 ORDER BY nome')->fetchAll();
         $data['priorities']=$pdo->query('SELECT * FROM service_priorities WHERE ativo=1 ORDER BY ordem,codigo')->fetchAll();
+        $data['companies']=service_desk_allowed_companies($pdo);
+        $data['brands']=$pdo->query('SELECT id,nome FROM marcas WHERE ativo=1 ORDER BY nome')->fetchAll();
+        $data['families']=$pdo->query('SELECT id,marca_id,nome,tipo_veiculo FROM familias WHERE ativo=1 ORDER BY nome')->fetchAll();
+        $data['models']=$pdo->query('SELECT m.id,m.familia_id,m.nome,f.marca_id,f.tipo_veiculo FROM modelos m JOIN familias f ON f.id=m.familia_id WHERE m.ativo=1 AND f.ativo=1 ORDER BY m.nome')->fetchAll();
         $optionParams=[];$optionAccess=service_desk_access_clause($optionParams);
         $filterCategories=$pdo->prepare("SELECT DISTINCT mc.id,mc.nome FROM service_reports sr JOIN master_categories mc ON mc.id=sr.categoria_id WHERE {$optionAccess} ORDER BY mc.nome");$filterCategories->execute($optionParams);$data['filter_categories']=$filterCategories->fetchAll();
         $filterPriorities=$pdo->prepare("SELECT DISTINCT sp.id,sp.codigo,sp.nome,sp.ordem FROM service_reports sr JOIN service_priorities sp ON sp.id=sr.prioridade_id WHERE {$optionAccess} ORDER BY sp.ordem,sp.codigo");$filterPriorities->execute($optionParams);$data['filter_priorities']=$filterPriorities->fetchAll();
@@ -658,6 +879,7 @@ function load_service_desk_page(): array
                 $message=$pdo->prepare('SELECT sm.*,u.nome usuario_nome FROM service_report_messages sm LEFT JOIN usuarios u ON u.id=sm.usuario_id WHERE sm.report_id=? ORDER BY sm.criado_em');$message->execute([$selectedId]);$data['messages']=$message->fetchAll();
                 $history=$pdo->prepare('SELECT sh.*,u.nome usuario_nome FROM service_report_history sh LEFT JOIN usuarios u ON u.id=sh.usuario_id WHERE sh.report_id=? ORDER BY sh.criado_em DESC');$history->execute([$selectedId]);$data['history']=$history->fetchAll();
                 $solutions=$pdo->prepare('SELECT ss.*,u.nome usuario_nome FROM service_report_solutions ss LEFT JOIN usuarios u ON u.id=ss.usuario_id WHERE ss.report_id=? ORDER BY ss.criado_em DESC');$solutions->execute([$selectedId]);$data['solutions']=$solutions->fetchAll();
+                if($data['attachments_ready']){$attachments=$pdo->prepare('SELECT sa.*,u.nome usuario_nome FROM service_report_attachments sa LEFT JOIN usuarios u ON u.id=sa.usuario_id WHERE sa.report_id=? ORDER BY sa.criado_em');$attachments->execute([$selectedId]);$data['attachments']=$attachments->fetchAll();}
                 $rating=$pdo->prepare('SELECT * FROM service_report_satisfaction WHERE report_id=?');$rating->execute([$selectedId]);$data['satisfaction']=$rating->fetch()?:null;
             }
         }

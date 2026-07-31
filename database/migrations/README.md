@@ -25,6 +25,7 @@ Faça um backup antes de importar. No phpMyAdmin, selecione o banco correto e im
 21. `20260729_021_gestao_setores_equipes.sql` — libera o módulo dedicado de setores e equipes para administradores, com cadastro, edição e gestão de integrantes.
 22. `20260729_022_corrige_taxonomia_legada.sql` — converte as antigas colunas em inglês de categorias e termos para a estrutura atual, preservando IDs e vínculos; depois de executá-la, reaplique as migrations 019 e 020.
 23. `20260730_023_service_desk_prioridades_workflow.sql` — profissionaliza o Service Desk com prioridades P1–P5, SLAs por prioridade, origem veículo/sistema, grupos de incidente e requisição, recorrência com ticket pai, soluções versionadas e protocolos RE/RQ.
+24. `20260730_024_service_desk_abertura_anexos_hierarquia.sql` — adiciona abertura manual e rascunhos, anexos de imagem, vídeo, áudio e documentos, além dos perfis Coordenação e Colaborador VWCO com a hierarquia de acesso do Service Desk.
 
 Cada arquivo registra sua versão em `schema_migrations`. Os arquivos foram preparados para uma única importação; não edite nem pule a ordem.
 

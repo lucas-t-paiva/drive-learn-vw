@@ -446,6 +446,9 @@ function handle_assistant_event(string $route,string $method): void
         if(isset($_FILES['audio'])&&(int)($_FILES['audio']['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_NO_FILE){$inputType='voz';$question=assistant_transcribe($_FILES['audio'],$config);}
         else{$question=trim((string)($_POST['pergunta']??''));if(($_POST['entrada']??'')==='voz'){$inputType='voz';$browserTranscript=($_POST['transcricao_local']??'')==='1';}}
         if(function_exists('service_desk_assistant_flow')){
+            $hasAssistantAttachments=!empty(array_filter((array)($_FILES['assistant_attachments']['name']??[])));
+            if($hasAssistantAttachments&&!$hadServiceFlow)throw new RuntimeException('Para anexar uma evidência, escolha primeiro “Reportar problema ou melhoria”.');
+            if($hadServiceFlow&&!empty($_FILES['assistant_attachments']))service_desk_stage_chat_attachments($_FILES['assistant_attachments']);
             $flowResponse=service_desk_assistant_flow($pdo,$question,$inputType,$audioSeconds,$assistantAction);
             $isServiceDeskRequest=$hadServiceFlow||isset($_SESSION['service_desk_flow'])||$assistantAction==='start_report'||str_starts_with($assistantAction,'report_');
             if(!$flowResponse&&$isServiceDeskRequest){

@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<title>Teste do leitor</title>
+<output id="result">carregando</output>
+<script type="module">
+import * as pdfjs from './vendor/pdfjs/pdf.min.mjs';
+pdfjs.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
+try {
+    const document = await pdfjs.getDocument('./documents/modelos/mercedes-o500-mda-3738-ficha-tecnica.pdf').promise;
+    const page = await document.getPage(1);
+    const content = await page.getTextContent();
+    result.textContent = JSON.stringify({ok: true, version: pdfjs.version, pages: document.numPages, items: content.items.length});
+} catch (error) {
+    result.textContent = JSON.stringify({ok: false, message: error.message});
+}
+</script>

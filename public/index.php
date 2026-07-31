@@ -44,8 +44,10 @@ require_once __DIR__ . '/../app/service_priorities_module.php';
 require_once __DIR__ . '/../app/report_taxonomy_module.php';
 require_once __DIR__ . '/../app/assistant_settings_module.php';
 require_once __DIR__ . '/../app/assistant_module.php';
+require_once __DIR__ . '/../app/model_sheet_reader_module.php';
 
 handle_assistant_event($route,$method);
+handle_model_sheet_reader_event($route,$method);
 
 if ($route === 'empresa-ativa' && $method === 'POST') {
     verify_csrf();

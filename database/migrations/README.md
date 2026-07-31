@@ -27,6 +27,7 @@ Faça um backup antes de importar. No phpMyAdmin, selecione o banco correto e im
 23. `20260730_023_service_desk_prioridades_workflow.sql` — profissionaliza o Service Desk com prioridades P1–P5, SLAs por prioridade, origem veículo/sistema, grupos de incidente e requisição, recorrência com ticket pai, soluções versionadas e protocolos RE/RQ.
 24. `20260730_024_service_desk_abertura_anexos_hierarquia.sql` — adiciona abertura manual e rascunhos, anexos de imagem, vídeo, áudio e documentos, além dos perfis Coordenação e Colaborador VWCO com a hierarquia de acesso do Service Desk.
 25. `20260731_025_auditoria_tecnica_modelos.sql` — revisa os 143 modelos do catálogo com fontes oficiais, completa PBT, PBTC, CMT, redução, entre-eixos e demais especificações, corrige classificações de caminhão/ônibus e atualiza os vínculos das fichas técnicas locais.
+26. `20260731_026_catalogo_onibus_mercedes_completo.sql` — amplia a linha Mercedes-Benz com micro-ônibus, escolar/rural, urbano, fretamento, rodoviário, articulado e superarticulado, usando fichas oficiais atualizadas.
 
 Cada arquivo registra sua versão em `schema_migrations`. Os arquivos foram preparados para uma única importação; não edite nem pule a ordem.
 
@@ -37,5 +38,7 @@ Nas atualizações 003 e 004, envie também os arquivos novos de `public/assets/
 Na atualização 009, envie também os novos arquivos PDF de `public/assets/documents/modelos` para o mesmo caminho na hospedagem. Os PDFs são fichas técnicas oficiais dos fabricantes; não são manuais.
 
 Na atualização 025, envie novamente a pasta `public/assets/documents/modelos`. A migration não usa CMT como sinônimo de PBTC: quando a fabricante não publica um valor único, o campo recebe uma indicação explícita de “não publicado”, “não se aplica” ou “conforme configuração”.
+
+Na atualização 026, envie os novos PDFs cujo nome começa com `mercedes-` em `public/assets/documents/modelos` e as imagens `mercedes-*-oficial.webp` em `public/assets/images/modelos`. A ficha do O 500 RSD 2438 não foi copiada porque o endereço de PDF publicado pela página oficial estava indisponível na data da auditoria; o modelo foi cadastrado somente com os dados confirmados na página pública.
 
 A atualização 004 diferencia no campo `mercado` o BYD D9A e o Mercedes-Benz eO500U disponíveis no Brasil dos BYD B12.b e B13 cadastrados como referências do catálogo internacional.

@@ -1,5 +1,5 @@
 RewriteEngine On
-RewriteRule (^|/)\. - [F,L]
+AddType application/javascript .mjs
 RewriteRule ^(?:app|config|database|scripts|storage|uploads|views)(?:/|$) - [F,L,NC]
 php_value upload_max_filesize 512M
 php_value post_max_size 520M

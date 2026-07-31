@@ -3,3 +3,107 @@
 @media(max-width:700px){.service-hero{align-items:flex-start;flex-direction:column}.service-hero .primary-button{width:100%}.service-kpis{grid-template-columns:1fr 1fr}.service-filters,.service-settings-grid{grid-template-columns:1fr}.service-detail-backdrop{padding:0}.service-detail{border-radius:0}.service-detail>header,.service-detail-main,.service-detail-body>aside{padding:16px}}
 .service-detail-backdrop{position:fixed;inset:0;z-index:1500;display:flex;align-items:flex-start;padding:18px;overflow:auto;background:rgba(0,20,45,.68)}.service-detail-modal{background:#fff;border-radius:15px;box-shadow:0 25px 80px rgba(0,0,0,.3)}.service-detail>header{border-radius:15px 15px 0 0}.service-detail>header .modal-close{position:static;display:grid;place-items:center;flex:0 0 38px;height:38px;color:#1c2c40;text-decoration:none}.service-detail-body>aside{border-radius:0 0 15px}
 @media(max-width:700px){.service-detail-backdrop{padding:0}.service-detail-modal{border-radius:0}}
+
+.priority-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:18px}.priority-summary article{display:grid;gap:5px;padding:16px;background:#fff;border:1px solid #dce5ed;border-top:4px solid var(--priority-color);border-radius:12px}.priority-summary strong{color:var(--priority-color);font-size:1.25rem}.priority-summary span{font-weight:800}.priority-summary small{color:var(--muted);line-height:1.45}.priority-name{display:flex;align-items:center;gap:11px}.priority-name>span,.service-priority{display:inline-grid;place-items:center;min-width:38px;height:27px;padding:0 8px;border-radius:100px;background:color-mix(in srgb,var(--priority-color) 12%,white);color:var(--priority-color);border:1px solid color-mix(in srgb,var(--priority-color) 32%,white);font-size:.68rem;font-weight:900}.priority-name>div{display:grid;gap:3px}.priority-name small{color:var(--muted)}
+.service-filters{grid-template-columns:minmax(240px,2fr) repeat(5,minmax(145px,1fr)) auto}.service-filters .filter-clear{display:grid;place-items:center;width:46px;min-height:46px;border:1px solid #d2dde7;border-radius:9px;color:#0068a9;text-decoration:none}.service-ticket-code{display:flex;align-items:center;gap:7px}.service-ticket-code i{font-size:.72rem}.service-sla{display:grid;gap:4px}.service-sla small{margin:0!important}.service-sla .overdue{color:#c62f3e;font-weight:800}
+.service-detail{width:min(1480px,100%)}.service-detail-body{display:block}.service-workflow{padding:18px 22px;border-bottom:1px solid #dde5ed;background:#f8fafc}.service-workflow-grid{display:grid;grid-template-columns:repeat(6,minmax(145px,1fr));gap:10px}.service-workflow label{display:grid;gap:6px;font-size:11px;font-weight:800;color:#506176}.service-workflow select,.service-workflow input,.service-workflow textarea{width:100%;min-width:0;min-height:43px;border:1px solid #cfdae4;border-radius:9px;background:#fff;padding:9px 11px}.service-workflow .wide{grid-column:span 2}.service-workflow-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:13px}.service-tabs{display:flex;gap:5px;padding:0 22px;border-bottom:1px solid #dce5ed;background:#fff}.service-tabs button{border:0;border-bottom:3px solid transparent;background:transparent;padding:15px 17px;color:#617387;font-weight:800;cursor:pointer}.service-tabs button.active{border-bottom-color:#0072b8;color:#0068a9}.service-tab-panel{display:none;padding:22px}.service-tab-panel.active{display:block}.service-context-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,.6fr);gap:18px}.service-meta-card,.service-compose,.service-solutions-list{border:1px solid #dce5ed;border-radius:13px;background:#fff;padding:17px}.service-meta-card dl{display:grid;grid-template-columns:auto 1fr;gap:9px 14px;margin:0}.service-meta-card dt{color:#718195;font-size:11px;text-transform:uppercase;font-weight:800}.service-meta-card dd{margin:0;font-weight:700}.service-compose{display:grid;gap:10px;margin-top:17px}.service-compose textarea{width:100%;border:1px solid #cfdae4;border-radius:9px;padding:11px;resize:vertical}.service-compose footer{display:flex;justify-content:flex-end}.service-solutions-grid{display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:18px}.service-solution{padding:14px 0;border-bottom:1px solid #e2e9ef}.service-solution:last-child{border-bottom:0}.service-solution header{display:flex;align-items:center;justify-content:space-between;gap:12px}.service-solution .type{border-radius:100px;padding:4px 8px;background:#eef6fb;color:#0872b5;font-size:10px;font-weight:900;text-transform:uppercase}.service-solution .type.aplicada{background:#e9f8f1;color:#178052}.service-solution p{white-space:pre-wrap;line-height:1.55}.service-parent-note{display:flex;gap:9px;padding:11px 13px;border-radius:9px;background:#fff7df;color:#765200;font-size:12px}.service-parent-note[hidden]{display:none}
+@media(max-width:1250px){.priority-summary{grid-template-columns:repeat(3,1fr)}.service-filters{grid-template-columns:repeat(3,minmax(0,1fr))}.service-filters>label{grid-column:span 2}.service-workflow-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:800px){.priority-summary{grid-template-columns:1fr 1fr}.service-filters,.service-workflow-grid,.service-context-grid,.service-solutions-grid{grid-template-columns:1fr}.service-filters>label,.service-workflow .wide{grid-column:auto}.service-tabs{overflow-x:auto}.service-tabs button{white-space:nowrap}.service-workflow-actions{flex-direction:column}.service-workflow-actions .primary-button{width:100%}}
+
+/* Filtros do Service Desk alinhados ao padrão das demais tabelas. */
+.service-list .service-filters.table-filters{
+    display:grid;
+    grid-template-columns:minmax(280px,.72fr) minmax(0,1.28fr);
+    align-items:start;
+    gap:12px;
+    padding:15px 18px;
+    border-bottom:1px solid var(--line);
+}
+.service-filters.table-filters .search{
+    width:100%;
+    min-width:0;
+}
+.service-filters.table-filters .search input{
+    height:44px;
+    min-height:44px;
+    padding-left:37px;
+}
+.service-filters.table-filters .panel-filters{
+    display:grid;
+    grid-template-columns:repeat(4,minmax(135px,1fr));
+    grid-auto-flow:row;
+    grid-auto-columns:auto;
+    align-items:center;
+    gap:9px;
+    width:100%;
+    min-width:0;
+}
+.service-filters.table-filters .panel-filters>*{
+    min-width:0;
+}
+.service-filters.table-filters .searchable-select,
+.service-filters.table-filters .searchable-select-input{
+    width:100%;
+    min-width:0;
+}
+.service-filters.table-filters .searchable-select-input{
+    height:44px;
+    min-height:44px;
+    border:1px solid #d8dfe5;
+    border-radius:7px;
+    padding:11px 38px 11px 12px;
+    background-color:#fff;
+    color:var(--ink);
+    font-weight:400;
+}
+.service-filters.table-filters .panel-filters>.btn{
+    width:100%;
+    height:44px;
+    min-height:44px;
+    border:1px solid var(--line);
+    border-radius:7px;
+    background:#fff;
+    color:var(--ink);
+    padding:10px 14px;
+    white-space:nowrap;
+}
+.service-filters.table-filters .panel-filters>.btn:hover{
+    border-color:#b6dce9;
+    background:#eaf5fb;
+    color:var(--blue);
+}
+.service-filters.table-filters .panel-filters>.filter-clear{
+    display:grid;
+    place-items:center;
+    min-width:44px;
+    padding:0;
+}
+.service-filters .searchable-select-options{
+    padding:6px;
+}
+.service-filters .searchable-select-options button{
+    border:0;
+    border-radius:6px;
+    background:#fff;
+    color:var(--ink);
+    padding:9px 10px;
+    text-align:left;
+    font-size:.72rem;
+    font-weight:600;
+    line-height:1.35;
+}
+.service-filters .searchable-select-options button:hover,
+.service-filters .searchable-select-options button.selected{
+    background:#eaf6fb;
+    color:var(--blue);
+}
+@media(max-width:1350px){
+    .service-list .service-filters.table-filters{grid-template-columns:1fr}
+}
+@media(max-width:900px){
+    .service-filters.table-filters .panel-filters{grid-template-columns:1fr 1fr}
+}
+@media(max-width:560px){
+    .service-list .service-filters.table-filters{padding:13px}
+    .service-filters.table-filters .panel-filters{grid-template-columns:1fr}
+}

@@ -40,6 +40,7 @@ require_once __DIR__ . '/../app/notifications_module.php';
 require_once __DIR__ . '/../app/model_spreadsheet_module.php';
 require_once __DIR__ . '/../app/sectors_module.php';
 require_once __DIR__ . '/../app/service_desk_module.php';
+require_once __DIR__ . '/../app/service_priorities_module.php';
 require_once __DIR__ . '/../app/report_taxonomy_module.php';
 require_once __DIR__ . '/../app/assistant_settings_module.php';
 require_once __DIR__ . '/../app/assistant_module.php';
@@ -63,6 +64,7 @@ handle_brand_post($route, $method);
 handle_model_spreadsheet_request($route, $method);
 handle_sectors_post($route,$method);
 handle_service_desk_post($route, $method);
+handle_service_priorities_post($route,$method);
 handle_report_taxonomy_post($route,$method);
 handle_assistant_settings_post($route,$method);
 
@@ -447,6 +449,7 @@ $pages = [
     'empresas-vwco' => ['organizations','Empresas VWCO'], 'clientes' => ['clients','Clientes'], 'usuarios' => ['users','Usuários'], 'setores' => ['sectors','Setores e equipes'],
     'permissoes' => ['permissions','Perfis e permissões'], 'relatorios' => ['reports','Relatórios e avaliações'],
     'service-desk' => ['service_desk','Service Desk'],
+    'prioridades-service-desk' => ['service_priorities','Prioridades e SLAs'],
     'categorias-relatos' => ['report_categories','Categorias mestre de relatos'],
     'termos-classificacao' => ['report_terms','Termos de classificação'],
     'configuracoes-assistente' => ['assistant_settings','Limites do assistente'],
@@ -459,7 +462,7 @@ if ($resource === 'ai_quote' && !is_master()) { http_response_code(403); $resour
 if ($resource === 'assistant_settings' && !is_master()) { http_response_code(403); $resource = 'forbidden'; $pageTitle = 'Acesso restrito'; }
 if ($resource !== 'not-found' && !can($resource, 'view')) { http_response_code(403); $resource = 'forbidden'; $pageTitle = 'Acesso restrito'; }
 
-$families = []; $models = []; $categories = []; $subcategories = []; $videos = []; $familyOptions = []; $modelOptions = []; $categoryOptions = []; $subcategoryOptions = []; $brandOptions=[]; $dashboard = []; $totalRows = 0; $totalPages = 1; $access = []; $fleet = []; $emissionStandards = []; $library = []; $reports = []; $brandPage=[]; $technicalCatalog=[]; $serviceDesk=[]; $sectors=[]; $taxonomy=[]; $assistantSettings=[];
+$families = []; $models = []; $categories = []; $subcategories = []; $videos = []; $familyOptions = []; $modelOptions = []; $categoryOptions = []; $subcategoryOptions = []; $brandOptions=[]; $dashboard = []; $totalRows = 0; $totalPages = 1; $access = []; $fleet = []; $emissionStandards = []; $library = []; $reports = []; $brandPage=[]; $technicalCatalog=[]; $serviceDesk=[]; $servicePriorities=[]; $sectors=[]; $taxonomy=[]; $assistantSettings=[];
 if (in_array($resource, ['organizations','clients','users','permissions'], true) && database_ready()) $access = load_access_page($resource);
 if ($resource === 'fleet' && database_ready()) $fleet = load_fleet_page();
 if ($resource === 'emission_standards' && database_ready()) $emissionStandards = load_emission_standards_page();
@@ -469,6 +472,7 @@ if ($resource === 'dashboard' && database_ready()) $dashboard = load_dashboard_p
 if ($resource === 'brands' && database_ready()) $brandPage = load_brands_page();
 if ($resource === 'technical_catalog' && database_ready()) $technicalCatalog = load_technical_catalog_page();
 if ($resource === 'service_desk' && database_ready()) $serviceDesk = load_service_desk_page();
+if ($resource === 'service_priorities' && database_ready()) $servicePriorities = load_service_priorities_page();
 if ($resource === 'sectors' && database_ready()) $sectors = load_sectors_page();
 if (in_array($resource,['report_categories','report_terms'],true) && database_ready()) $taxonomy = load_report_taxonomy_page($resource);
 if ($resource === 'assistant_settings' && database_ready()) $assistantSettings = load_assistant_settings_page();

@@ -1,3 +1,5 @@
+;(async()=>{
+await (window.driveLearnTablesReady||Promise.resolve());
 const sidebar=document.querySelector('#sidebar'),sidebarBackdrop=document.querySelector('.sidebar-backdrop'),menuButton=document.querySelector('.hamburger');
 const isMobileMenu=()=>window.matchMedia('(max-width: 800px)').matches;
 const savedSidebarState=()=>{try{return localStorage.getItem('driveLearnSidebarCollapsed')==='1'}catch{return false}};
@@ -53,6 +55,7 @@ document.querySelectorAll('[data-code-countdown]').forEach(counter=>{let remaini
 const closeSearchableDropdowns=except=>document.querySelectorAll('.searchable-select.open').forEach(wrapper=>{if(wrapper!==except)wrapper.classList.remove('open')});
 const openModal=id=>{const m=document.querySelector(id);if(m){closeSearchableDropdowns();m.classList.add('open');m.setAttribute('aria-hidden','false');document.body.style.overflow='hidden'}};
 const closeModal=m=>{closeSearchableDropdowns();m.classList.remove('open');m.setAttribute('aria-hidden','true');document.body.style.overflow=''};
+window.openModal=openModal;window.closeModal=closeModal;
 document.querySelectorAll('[data-open-form]').forEach(b=>b.addEventListener('click',()=>openModal('#form-modal')));
 document.querySelectorAll('[data-video-title]').forEach(b=>b.addEventListener('click',()=>{document.querySelector('#modal-video-title').textContent=b.dataset.videoTitle;openModal('#video-modal')}));
 document.querySelectorAll('[data-modal-close]').forEach(b=>b.addEventListener('click',()=>closeModal(b.closest('.modal'))));
@@ -125,6 +128,14 @@ if(reportTermForm){
  document.querySelectorAll('[data-report-term-delete]').forEach(button=>button.addEventListener('click',()=>{document.querySelector('[data-delete-report-term-id]').value=button.dataset.id;document.querySelector('[data-delete-report-term-name]').textContent=button.dataset.name;openModal('#delete-report-term-modal')}));
 }
 
+const priorityForm=document.querySelector('[data-priority-form]');
+if(priorityForm){
+ const reset=()=>{priorityForm.reset();priorityForm.querySelector('[name="action"]').value='create';priorityForm.querySelector('[name="id"]').value='';priorityForm.querySelector('[name="ordem"]').value='3';priorityForm.querySelector('[name="cor"]').value='#64748b';priorityForm.querySelector('[name="sla_primeira_interacao_minutos"]').value='240';priorityForm.querySelector('[name="sla_resolucao_minutos"]').value='1440';priorityForm.querySelector('[name="ativo"]').checked=true;document.querySelector('[data-priority-title]').textContent='Nova prioridade'};
+ document.querySelector('[data-priority-create]')?.addEventListener('click',()=>{reset();openModal('#priority-modal')});
+ document.querySelectorAll('[data-priority-edit]').forEach(button=>button.addEventListener('click',()=>{reset();const row=JSON.parse(button.dataset.row||'{}');priorityForm.querySelector('[name="action"]').value='update';Object.entries(row).forEach(([name,value])=>{const field=priorityForm.querySelector(`[name="${name}"]`);if(!field)return;if(field.type==='checkbox')field.checked=!!Number(value);else field.value=value??''});document.querySelector('[data-priority-title]').textContent='Editar prioridade';openModal('#priority-modal')}));
+ document.querySelectorAll('[data-priority-delete]').forEach(button=>button.addEventListener('click',()=>{document.querySelector('[data-delete-priority-id]').value=button.dataset.id;document.querySelector('[data-delete-priority-name]').textContent=button.dataset.name;openModal('#delete-priority-modal')}));
+}
+
 const videoForm=document.querySelector('[data-video-form]');
 if(videoForm){
  const videoCategory=videoForm.querySelector('[data-video-category]'),videoSubcategory=videoForm.querySelector('[data-video-subcategory]');
@@ -161,12 +172,12 @@ const searchableTargets=[
  ['[data-fleet-form] select[name="tipo_veiculo"]','Pesquisar tipo de veículo...'],
  ['[data-subcategory-form] select[name="categoria_id"]','Pesquisar categoria...'],
  ['[data-report-category-form] select[name="setor_padrao_id"]','Pesquisar setor...'],
+ ['[data-report-category-form] select[name="prioridade_padrao_id"]','Pesquisar prioridade...'],
  ['[data-report-term-form] select[name="categoria_id"]','Pesquisar categoria de relato...'],
  ['.sector-filters select[name="empresa"]','Pesquisar organização...'],
  ['.sector-filters select[name="status"]','Pesquisar situação...'],
  ['[data-sector-form] select[name="empresa_id"]','Pesquisar organização...'],
  ['[data-sector-member-form] select[name="usuario_id"]','Pesquisar usuário...'],
- ['.sector-pagination select[name="per_page"]','Pesquisar quantidade...'],
  ['.table-filters select[name="categoria"]','Pesquisar categoria...'],
  ['.settings-form select[name="empresa_id"]','Pesquisar empresa...'],
  ['[data-video-form] select[name="categoria_id"]','Pesquisar categoria...'],
@@ -205,6 +216,22 @@ const searchableTargets=[
  ['.fleet-filters select[name="marca"]','Pesquisar marca...'],
  ['.fleet-filters select[name="familia"]','Pesquisar família...'],
  ['.fleet-filters select[name="norma"]','Pesquisar norma...']
+ ,['.service-filters select[name="status"]','Pesquisar status...']
+ ,['.service-filters select[name="prioridade"]','Pesquisar prioridade...']
+ ,['.service-filters select[name="grupo"]','Pesquisar grupo...']
+ ,['.service-filters select[name="categoria"]','Pesquisar categoria...']
+ ,['.service-filters select[name="setor"]','Pesquisar setor...']
+ ,['.service-filters select[name="tipo"]','Pesquisar tipo...']
+ ,['.service-workflow select[name="tipo"]','Pesquisar tipo...']
+ ,['.service-workflow select[name="prioridade_id"]','Pesquisar prioridade...']
+ ,['.service-workflow select[name="categoria_id"]','Pesquisar categoria...']
+ ,['.service-workflow select[name="status"]','Pesquisar status...']
+ ,['.service-workflow select[name="setor_id"]','Pesquisar setor...']
+ ,['.service-workflow select[name="responsavel_id"]','Pesquisar responsável...']
+ ,['.service-workflow select[name="ticket_pai_id"]','Pesquisar ticket pai...']
+ ,['[data-service-detail] select','Pesquisar opção...']
+ ,['[data-priority-form] select','Pesquisar opção...']
+ ,['.table-filters select','Pesquisar filtro...']
 ];
 const normalizeSearch=value=>(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
 const enhanceSearchableSelect=(select,placeholder)=>{
@@ -221,7 +248,7 @@ const enhanceSearchableSelect=(select,placeholder)=>{
  input.addEventListener('focus',()=>{input.select();open()});input.addEventListener('click',open);input.addEventListener('input',open);input.addEventListener('keydown',event=>{if(event.key==='Escape')close();if(event.key==='Enter'){const button=dropdown.querySelector('button');if(button){event.preventDefault();button.click()}}});
  select.addEventListener('change',sync);select.addEventListener('invalid',event=>{event.preventDefault();input.focus();open()});select.form?.addEventListener('reset',()=>setTimeout(sync));document.addEventListener('click',event=>{if(!wrapper.contains(event.target))close()});select._refreshSearchable=sync;sync();
 };
-searchableTargets.forEach(([selector,placeholder])=>enhanceSearchableSelect(document.querySelector(selector),placeholder));
+searchableTargets.forEach(([selector,placeholder])=>document.querySelectorAll(selector).forEach(select=>enhanceSearchableSelect(select,placeholder)));
 document.addEventListener('click',event=>{if(event.target.closest('[data-model-create],[data-model-edit],[data-subcategory-create],[data-subcategory-edit],[data-video-create],[data-video-edit]'))setTimeout(()=>document.querySelectorAll('.searchable-select-native').forEach(select=>select._refreshSearchable?.()))});
 
 const sectorForm=document.querySelector('[data-sector-form]');
@@ -369,3 +396,73 @@ if(libraryModal){
  let clearLibrary=filterForm?.querySelector('a[aria-label="Limpar filtros"]');if(!clearLibrary&&filterForm){clearLibrary=document.createElement('button');clearLibrary.type='button';clearLibrary.className='btn secondary';clearLibrary.setAttribute('aria-label','Limpar filtros');clearLibrary.innerHTML='<i class="bi bi-x-lg"></i>';filterForm.append(clearLibrary)}clearLibrary?.addEventListener('click',event=>{event.preventDefault();filterForm.reset();filterForm.querySelectorAll('select').forEach(select=>select._refreshSearchable?.());applyLibraryFilters()});
  applyLibraryFilters();
 }
+
+const serviceDetail=document.querySelector('[data-service-detail]');
+if(serviceDetail){
+ const tabs=serviceDetail.querySelectorAll('[data-service-tab]'),panels=serviceDetail.querySelectorAll('[data-service-panel]');
+ tabs.forEach(tab=>tab.addEventListener('click',()=>{const target=tab.dataset.serviceTab;tabs.forEach(item=>item.classList.toggle('active',item===tab));panels.forEach(panel=>panel.classList.toggle('active',panel.dataset.servicePanel===target));const url=new URL(location.href);url.searchParams.set('tab',target);history.replaceState(null,'',url)}));
+ const recurring=serviceDetail.querySelector('[data-service-recurring]'),parent=serviceDetail.querySelector('[data-service-parent]');
+ const syncRecurring=()=>{if(!parent)return;parent.hidden=!recurring?.checked;const select=parent.querySelector('select');if(select){select.required=!!recurring?.checked;if(!recurring?.checked)select.value='';select._refreshSearchable?.()}};
+ recurring?.addEventListener('change',syncRecurring);syncRecurring();
+}
+
+const dynamicTableNormalize=value=>(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+document.querySelectorAll('.panel .table-wrap').forEach(wrapper=>{
+ const table=wrapper.querySelector(':scope > table'),body=table?.tBodies?.[0],panel=wrapper.closest('.panel');
+ if(!body||table.closest('.modal')||table.hasAttribute('data-dynamic-table-disabled'))return;
+ const rows=Array.from(body.rows).filter(row=>!row.querySelector('.table-empty'));
+ if(!rows.length)return;
+ const headerCells=Array.from(table.tHead?.rows?.[0]?.cells||[]);if(!headerCells.length)return;
+ const oldFilter=panel.querySelector('form.table-filters,form.service-filters,form.sector-filters,form.family-table-filters,form.model-table-filters,form.video-filters,form.fleet-filters,form.report-filters');
+ const oldLocalFilter=wrapper.previousElementSibling?.classList.contains('panel-head')&&wrapper.previousElementSibling.querySelector('[data-table-search]')?wrapper.previousElementSibling:null;
+ const initialSearch=oldFilter?.querySelector('input[name="q"]')?.value||oldLocalFilter?.querySelector('[data-table-search]')?.value||'';
+ if(oldFilter)oldFilter.hidden=true;
+ if(oldLocalFilter)oldLocalFilter.hidden=true;
+
+ const toolbar=document.createElement('div');toolbar.className='dynamic-table-toolbar';
+ toolbar.innerHTML='<label class="dynamic-table-search"><i class="bi bi-search"></i><input type="search" placeholder="Buscar na tabela..." autocomplete="off" aria-label="Busca geral na tabela"></label><div class="dynamic-table-size"><span>Linhas</span><select aria-label="Quantidade de linhas por página"><option>5</option><option selected>10</option><option>25</option><option>50</option><option>100</option></select></div><button type="button" class="dynamic-table-clear" aria-label="Limpar todos os filtros" title="Limpar filtros"><i class="bi bi-x-lg"></i></button>';
+ wrapper.before(toolbar);
+ const globalSearch=toolbar.querySelector('input'),perPageSelect=toolbar.querySelector('select'),clearButton=toolbar.querySelector('button');
+ globalSearch.value=initialSearch;
+
+ const filterRow=document.createElement('tr');filterRow.className='dynamic-column-filters';
+ const columnInputs=headerCells.map((header,index)=>{
+  const cell=document.createElement('th'),label=header.textContent.trim(),normalized=dynamicTableNormalize(label),skip=!label||normalized==='acoes'||normalized==='acao'||header.querySelector('input[type="checkbox"]');
+  if(skip){cell.className='no-column-filter';filterRow.append(cell);return null}
+  const input=document.createElement('input');input.type='search';input.placeholder=`Filtrar ${label}`;input.autocomplete='off';input.setAttribute('aria-label',`Filtrar coluna ${label}`);input.dataset.column=String(index);cell.append(input);filterRow.append(cell);return input;
+ });
+ table.tHead.append(filterRow);
+
+ const rowData=rows.map(row=>{const values=Array.from(row.cells).map(cell=>dynamicTableNormalize(cell.innerText));return {row,values,text:values.join(' ')}});
+ let page=1,perPage=10,filtered=rowData;
+ let pagination=wrapper.nextElementSibling?.classList.contains('pagination')?wrapper.nextElementSibling:panel.querySelector('.pagination');
+ if(!pagination){pagination=document.createElement('div');pagination.className='pagination';wrapper.after(pagination)}
+ pagination.classList.add('dynamic-table-pagination');pagination.replaceChildren();
+ const summary=document.createElement('span'),nav=document.createElement('nav');nav.className='page-buttons';pagination.append(summary,nav);
+ const emptyRow=document.createElement('tr');emptyRow.className='dynamic-table-empty';emptyRow.hidden=true;const emptyCell=document.createElement('td');emptyCell.colSpan=headerCells.length;emptyCell.innerHTML='<div class="table-empty"><i class="bi bi-search"></i><strong>Nenhum registro encontrado</strong><span>Altere ou limpe os filtros para visualizar outros resultados.</span></div>';emptyRow.append(emptyCell);body.append(emptyRow);
+
+ const render=()=>{
+  const pages=Math.max(1,Math.ceil(filtered.length/perPage));page=Math.min(page,pages);
+  const visible=new Set(filtered.slice((page-1)*perPage,page*perPage).map(item=>item.row));
+  rows.forEach(row=>row.hidden=!visible.has(row));
+  emptyRow.hidden=filtered.length!==0;
+  const start=filtered.length?(page-1)*perPage+1:0,end=Math.min(page*perPage,filtered.length);
+  summary.textContent=`Mostrando ${start}–${end} de ${filtered.length} registro${filtered.length===1?'':'s'}`;
+  nav.innerHTML='';
+  const addButton=(label,target,active=false,icon='')=>{const button=document.createElement('button');button.type='button';button.classList.toggle('active',active);button.innerHTML=icon?`<i class="bi ${icon}"></i>`:label;button.disabled=target<1||target>pages;button.setAttribute('aria-label',icon?(target<page?'Página anterior':'Próxima página'):`Página ${target}`);button.addEventListener('click',()=>{page=target;render();wrapper.scrollIntoView({block:'nearest',behavior:'smooth'})});nav.append(button)};
+  addButton('',page-1,false,'bi-chevron-left');
+  for(let current=Math.max(1,page-2);current<=Math.min(pages,page+2);current++)addButton(String(current),current,current===page);
+  addButton('',page+1,false,'bi-chevron-right');
+ };
+ const applyFilters=()=>{
+  const general=dynamicTableNormalize(globalSearch.value),columns=columnInputs.map(input=>dynamicTableNormalize(input?.value||''));
+  filtered=rowData.filter(item=>(!general||item.text.includes(general))&&columns.every((value,index)=>!value||(item.values[index]||'').includes(value)));
+  page=1;render();
+ };
+ globalSearch.addEventListener('input',applyFilters);
+ columnInputs.forEach(input=>input?.addEventListener('input',applyFilters));
+ perPageSelect.addEventListener('change',()=>{perPage=Number(perPageSelect.value)||10;page=1;render()});
+ clearButton.addEventListener('click',()=>{globalSearch.value='';columnInputs.forEach(input=>{if(input)input.value=''});applyFilters();globalSearch.focus()});
+ applyFilters();
+});
+})();

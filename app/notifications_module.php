@@ -52,6 +52,9 @@ function load_header_notifications(): array
                     $stmt=$pdo->prepare("SELECT id,protocolo,titulo FROM service_reports WHERE empresa_cliente_id=? AND usuario_id=? AND status='finalizado' ORDER BY finalizado_em DESC LIMIT 5");
                     $stmt->execute([active_company_id()?:0,(int)$current['id']]);
                     foreach($stmt->fetchAll() as $report)$items[]=notification_item('service_report_final_'.$report['id'],'Relato '.$report['protocolo'].' finalizado','A solução foi registrada. Abra o relato para conferir e avaliar.','service-desk','bi-check2-circle','success');
+                    $stmt=$pdo->prepare("SELECT sr.id,sr.protocolo,pai.protocolo pai_protocolo FROM service_reports sr JOIN service_reports pai ON pai.id=sr.ticket_pai_id WHERE sr.empresa_cliente_id=? AND sr.usuario_id=? AND sr.recorrente=1 AND sr.status='possivel_solucao' AND pai.status='finalizado' ORDER BY sr.atualizado_em DESC LIMIT 5");
+                    $stmt->execute([active_company_id()?:0,(int)$current['id']]);
+                    foreach($stmt->fetchAll() as $report)$items[]=notification_item('service_report_parent_solution_'.$report['id'],'Possível solução para '.$report['protocolo'],'O ticket pai '.$report['pai_protocolo'].' foi concluído. Confirme se a solução também atende sua ocorrência.','service-desk?id='.(int)$report['id'],'bi-lightbulb','info');
                 } elseif (service_desk_internal_user()) {
                     $params=[];$scope=service_desk_access_clause($params);
                     $stmt=$pdo->prepare("SELECT COUNT(*) FROM service_reports sr WHERE {$scope} AND sr.status='novo'");$stmt->execute($params);$newReports=(int)$stmt->fetchColumn();

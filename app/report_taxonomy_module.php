@@ -33,19 +33,19 @@ function handle_report_taxonomy_post(string $route,string $method): void
                 if((int)$current['termos']>0||(int)$current['relatos']>0||(int)$current['filhas']>0)throw new RuntimeException('Esta categoria possui termos, relatos ou categorias vinculadas. Inative-a ou remova os vínculos primeiro.');
                 $pdo->prepare('DELETE FROM master_categories WHERE id=?')->execute([$id]);flash('success','Categoria de relato excluída.');
             }else{
-                $id=$action==='update'?(int)($_POST['id']??0):0;$name=trim((string)($_POST['nome']??''));$type=(string)($_POST['tipo']??'geral');$sectorId=(int)($_POST['setor_padrao_id']??0);
-                $first=max(1,min(720,(int)($_POST['sla_primeira_resposta_horas']??8)));$resolution=max($first,min(8760,(int)($_POST['sla_resolucao_horas']??72)));
+                $id=$action==='update'?(int)($_POST['id']??0):0;$name=trim((string)($_POST['nome']??''));$type=(string)($_POST['tipo']??'geral');$sectorId=(int)($_POST['setor_padrao_id']??0);$priorityId=(int)($_POST['prioridade_padrao_id']??0);
                 if($name===''||!isset(report_category_types()[$type]))throw new RuntimeException('Informe o nome e o tipo da categoria.');
+                if($priorityId){$priority=$pdo->prepare('SELECT id FROM service_priorities WHERE id=? AND ativo=1');$priority->execute([$priorityId]);if(!$priority->fetchColumn())throw new RuntimeException('Selecione uma prioridade ativa.');}
                 $slug=report_taxonomy_slug($name);if($slug==='')throw new RuntimeException('Informe um nome válido.');
                 $duplicate=$pdo->prepare('SELECT id FROM master_categories WHERE slug=? AND id<>?');$duplicate->execute([$slug,$id]);if($duplicate->fetchColumn())$slug.='-'.substr(hash('crc32b',$name.($id?:microtime())),0,5);
                 if($action==='create'){
-                    $stmt=$pdo->prepare('INSERT INTO master_categories(setor_padrao_id,nome,slug,tipo,descricao,sla_primeira_resposta_horas,sla_resolucao_horas,ativo) VALUES(?,?,?,?,?,?,?,?)');
-                    $stmt->execute([$sectorId?:null,$name,$slug,$type,trim((string)($_POST['descricao']??''))?:null,$first,$resolution,(int)isset($_POST['ativo'])]);
+                    $stmt=$pdo->prepare('INSERT INTO master_categories(setor_padrao_id,prioridade_padrao_id,nome,slug,tipo,descricao,ativo) VALUES(?,?,?,?,?,?,?)');
+                    $stmt->execute([$sectorId?:null,$priorityId?:null,$name,$slug,$type,trim((string)($_POST['descricao']??''))?:null,(int)isset($_POST['ativo'])]);
                     flash('success','Categoria de relato cadastrada.');
                 }else{
                     if(!$id)throw new RuntimeException('Categoria inválida.');
-                    $stmt=$pdo->prepare('UPDATE master_categories SET setor_padrao_id=?,nome=?,slug=?,tipo=?,descricao=?,sla_primeira_resposta_horas=?,sla_resolucao_horas=?,ativo=? WHERE id=?');
-                    $stmt->execute([$sectorId?:null,$name,$slug,$type,trim((string)($_POST['descricao']??''))?:null,$first,$resolution,(int)isset($_POST['ativo']),$id]);
+                    $stmt=$pdo->prepare('UPDATE master_categories SET setor_padrao_id=?,prioridade_padrao_id=?,nome=?,slug=?,tipo=?,descricao=?,ativo=? WHERE id=?');
+                    $stmt->execute([$sectorId?:null,$priorityId?:null,$name,$slug,$type,trim((string)($_POST['descricao']??''))?:null,(int)isset($_POST['ativo']),$id]);
                     flash('success','Categoria de relato atualizada.');
                 }
             }
@@ -69,7 +69,7 @@ function handle_report_taxonomy_post(string $route,string $method): void
 
 function load_report_taxonomy_page(string $resource): array
 {
-    $pdo=db();$data=['ready'=>false,'rows'=>[],'categories'=>[],'sectors'=>[],'total'=>0,'pages'=>1];
+    $pdo=db();$data=['ready'=>false,'rows'=>[],'categories'=>[],'sectors'=>[],'priorities'=>[],'total'=>0,'pages'=>1];
     if(!$pdo)return $data;
     try{
         $pdo->query('SELECT 1 FROM master_categories LIMIT 1');$data['ready']=true;
@@ -77,6 +77,7 @@ function load_report_taxonomy_page(string $resource): array
         $data['page']=$page;$data['per_page']=$perPage;$data['offset']=$offset;$data['q']=$q;$data['status']=$status;$data['type']=$type;$data['category_filter']=$categoryId;
         $data['categories']=$pdo->query('SELECT id,nome,tipo FROM master_categories WHERE ativo=1 ORDER BY nome')->fetchAll();
         $data['sectors']=$pdo->query('SELECT id,nome FROM setores WHERE ativo=1 ORDER BY nome')->fetchAll();
+        try{$data['priorities']=$pdo->query('SELECT id,codigo,nome FROM service_priorities WHERE ativo=1 ORDER BY ordem,codigo')->fetchAll();}catch(Throwable){}
         $where=[];$params=[];
         if($resource==='report_categories'){
             if($q!==''){$where[]='(mc.nome LIKE ? OR mc.descricao LIKE ? OR mc.slug LIKE ?)';array_push($params,"%{$q}%","%{$q}%","%{$q}%");}
@@ -84,7 +85,7 @@ function load_report_taxonomy_page(string $resource): array
             if(in_array($status,['ativo','inativo'],true)){$where[]='mc.ativo=?';$params[]=$status==='ativo'?1:0;}
             $whereSql=$where?' WHERE '.implode(' AND ',$where):'';
             $count=$pdo->prepare('SELECT COUNT(*) FROM master_categories mc'.$whereSql);$count->execute($params);$data['total']=(int)$count->fetchColumn();
-            $stmt=$pdo->prepare('SELECT mc.*,s.nome setor_nome,(SELECT COUNT(*) FROM category_terms ct WHERE ct.categoria_id=mc.id) termos,(SELECT COUNT(*) FROM service_reports sr WHERE sr.categoria_id=mc.id) relatos FROM master_categories mc LEFT JOIN setores s ON s.id=mc.setor_padrao_id'.$whereSql.' ORDER BY mc.nome LIMIT ? OFFSET ?');
+            $stmt=$pdo->prepare('SELECT mc.*,s.nome setor_nome,sp.codigo prioridade_codigo,sp.nome prioridade_nome,sp.cor prioridade_cor,(SELECT COUNT(*) FROM category_terms ct WHERE ct.categoria_id=mc.id) termos,(SELECT COUNT(*) FROM service_reports sr WHERE sr.categoria_id=mc.id) relatos FROM master_categories mc LEFT JOIN setores s ON s.id=mc.setor_padrao_id LEFT JOIN service_priorities sp ON sp.id=mc.prioridade_padrao_id'.$whereSql.' ORDER BY mc.nome LIMIT ? OFFSET ?');
         }else{
             if($q!==''){$where[]='(ct.termo LIKE ? OR mc.nome LIKE ?)';array_push($params,"%{$q}%","%{$q}%");}
             if($categoryId){$where[]='ct.categoria_id=?';$params[]=$categoryId;}

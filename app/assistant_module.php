@@ -447,6 +447,16 @@ function handle_assistant_event(string $route,string $method): void
         else{$question=trim((string)($_POST['pergunta']??''));if(($_POST['entrada']??'')==='voz'){$inputType='voz';$browserTranscript=($_POST['transcricao_local']??'')==='1';}}
         if(function_exists('service_desk_assistant_flow')){
             $flowResponse=service_desk_assistant_flow($pdo,$question,$inputType,$audioSeconds,$assistantAction);
+            $isServiceDeskRequest=$hadServiceFlow||isset($_SESSION['service_desk_flow'])||$assistantAction==='start_report'||str_starts_with($assistantAction,'report_');
+            if(!$flowResponse&&$isServiceDeskRequest){
+                $flowResponse=function_exists('service_desk_resume_flow')?service_desk_resume_flow($pdo):null;
+                if(!$flowResponse){
+                    unset($_SESSION['service_desk_flow']);
+                    $flowResponse=['answer'=>'O atendimento anterior perdeu a etapa atual. Vamos reiniciar o relato para manter os dados corretos.','options'=>[
+                        ['action'=>'start_report','label'=>'Iniciar relato novamente','icon'=>'bi-arrow-clockwise'],
+                    ]];
+                }
+            }
             if($flowResponse){
                 $normalized=assistant_normalize($question!==''?$question:$assistantAction);
                 $flowType=$hadServiceFlow||str_starts_with($assistantAction,'report_')||$assistantAction==='start_report'?'service_desk':'controle';

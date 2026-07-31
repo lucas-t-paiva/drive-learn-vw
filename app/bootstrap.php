@@ -247,7 +247,7 @@ function slugify(string $value): string
 
 function pagination_params(): array
 {
-    $allowed = [5, 10, 25, 50];
+    $allowed = [5, 10, 25, 50, 100, 250];
     $perPage = (int)($_GET['per_page'] ?? 10);
     if (!in_array($perPage, $allowed, true)) $perPage = 10;
     $page = max(1, (int)($_GET['page'] ?? 1));

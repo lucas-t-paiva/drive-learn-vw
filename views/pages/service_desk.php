@@ -50,6 +50,7 @@ $selected=$desk['selected']??null;$internal=service_desk_internal_user();$canMan
     <header class="modal-header"><div><span class="eyebrow">Nova solicitação</span><h2 data-service-create-title>Abrir chamado</h2><p>Registre uma falha ou melhoria. Você pode salvar e continuar depois.</p></div><button type="button" class="modal-close" data-service-create-close aria-label="Fechar"><i class="bi bi-x-lg"></i></button></header>
     <form class="modal-body service-create-form" method="post" action="<?= url('service-desk') ?>" enctype="multipart/form-data" data-service-create-form>
         <?= csrf_field() ?><input type="hidden" name="action" value="save_manual_report"><input type="hidden" name="id" value=""><input type="hidden" name="submission_mode" value="submit">
+        <div class="service-create-scroll" data-service-create-scroll>
         <nav class="service-create-steps"><button type="button" class="active" data-service-step-button="1"><span>1</span> Origem</button><button type="button" data-service-step-button="2"><span>2</span> Contexto</button><button type="button" data-service-step-button="3"><span>3</span> Relato e anexos</button></nav>
         <section class="service-create-step active" data-service-step="1">
             <div class="form-grid"><label class="wide">Empresa<select name="empresa_id" required><option value="">Pesquisar empresa...</option><?php foreach($desk['companies'] as $company): ?><option value="<?= (int)$company['id'] ?>" <?= count($desk['companies'])===1?'selected':'' ?>><?= e($company['nome_fantasia'].' · '.ucfirst($company['tipo'])) ?></option><?php endforeach; ?></select></label></div>
@@ -69,6 +70,7 @@ $selected=$desk['selected']??null;$internal=service_desk_internal_user();$canMan
             <div class="form-grid"><label class="wide">Título<input type="text" name="titulo" maxlength="190" placeholder="Resumo curto e objetivo"></label><label class="wide">Descrição detalhada<textarea name="relato" rows="7" placeholder="Conte o que aconteceu, quando começou, impactos e condições observadas..."></textarea></label></div>
             <label class="service-upload"><i class="bi bi-paperclip"></i><span><strong>Adicionar evidências</strong><small>Fotos, vídeo curto, áudio, PDF, Word, Excel ou TXT.</small></span><input type="file" name="anexos[]" multiple accept="image/*,video/mp4,video/webm,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" data-service-files></label><div class="service-file-list" data-service-file-list></div>
         </section>
+        </div>
         <footer class="modal-actions service-create-actions"><button type="button" class="btn secondary" data-service-prev hidden><i class="bi bi-arrow-left"></i> Voltar</button><span></span><button type="button" class="btn secondary" data-service-draft-save><i class="bi bi-file-earmark"></i> Salvar rascunho</button><button type="button" class="btn primary" data-service-next>Continuar <i class="bi bi-arrow-right"></i></button><button type="submit" class="btn primary" data-service-submit hidden><i class="bi bi-send"></i> Enviar chamado</button></footer>
     </form>
 </section></div>

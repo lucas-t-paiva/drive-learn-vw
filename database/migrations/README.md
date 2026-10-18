@@ -12,6 +12,7 @@ Faça um backup antes de importar. No phpMyAdmin, selecione o banco correto e im
 8. `20260725_008_modelos_importacao_pesos_reducao.sql` — separa PBT e PBTC, adiciona relação de redução e prepara o cadastro de modelos para importação e exportação.
 9. `20260725_009_catalogo_onibus_multimarcas.sql` — adiciona famílias e modelos de ônibus Mercedes-Benz, Volvo, Scania e IVECO BUS, com dados auditados e fichas técnicas oficiais locais.
 10. `20260725_010_tipo_veiculo_familias_frotas.sql` — classifica famílias e composições de frota como caminhão ou ônibus e cria os índices usados pelos novos filtros.
+
 11. `20260725_011_lembrar_login.sql` — cria os tokens seguros e revogáveis utilizados pela opção “Lembrar de mim”.
 12. `20260725_012_recuperacao_senha_email.sql` — cria os códigos de recuperação de senha com expiração, limite de tentativas e uso único.
 13. `20260728_013_vinculos_marcas_videos_usuarios.sql` — vincula vídeos e usuários a uma ou mais marcas e preserva os acessos existentes.
@@ -28,6 +29,12 @@ Faça um backup antes de importar. No phpMyAdmin, selecione o banco correto e im
 24. `20260730_024_service_desk_abertura_anexos_hierarquia.sql` — adiciona abertura manual e rascunhos, anexos de imagem, vídeo, áudio e documentos, além dos perfis Coordenação e Colaborador VWCO com a hierarquia de acesso do Service Desk.
 25. `20260731_025_auditoria_tecnica_modelos.sql` — revisa os 143 modelos do catálogo com fontes oficiais, completa PBT, PBTC, CMT, redução, entre-eixos e demais especificações, corrige classificações de caminhão/ônibus e atualiza os vínculos das fichas técnicas locais.
 26. `20260731_026_catalogo_onibus_mercedes_completo.sql` — amplia a linha Mercedes-Benz com micro-ônibus, escolar/rural, urbano, fretamento, rodoviário, articulado e superarticulado, usando fichas oficiais atualizadas.
+27. `20260827_027_sincronizacao_mercedes_chassis.sql` — sincroniza chassis Mercedes-Benz atuais, complementa especificações e vínculos com documentos técnicos oficiais.
+28. `20260916_028_catalogo_onibus_volvo.sql` — atualiza o catálogo de ônibus Volvo, incluindo chassis convencionais e elétricos com documentação pública oficial.
+29. `20260916_029_catalogo_onibus_scania.sql` — atualiza a linha de ônibus Scania a diesel, gás e elétrica com famílias, modelos e especificações normalizadas.
+30. `20260916_030_catalogo_onibus_iveco.sql` — atualiza a linha IVECO BUS com modelos e especificações técnicas disponíveis nas fontes oficiais.
+31. `20261016_031_atualizacao_catalogo_multimarcas.sql` — auditoria incremental de VWCO, Mercedes-Benz, IVECO, BYD, Volvo, Scania e DAF; inclui 18 modelos, complementa o Volvo BZR e vincula novas fichas e imagens oficiais.
+32. `20261017_032_segmento_vans_precos_catalogo.sql` — adiciona o segmento Vans, cria o histórico auditável de preços oficiais e cadastra 31 versões Mercedes-Benz, Ford, Renault, Fiat, Peugeot, Citroën e IVECO com especificações, fontes e fichas disponíveis.
 
 Cada arquivo registra sua versão em `schema_migrations`. Os arquivos foram preparados para uma única importação; não edite nem pule a ordem.
 
@@ -40,5 +47,9 @@ Na atualização 009, envie também os novos arquivos PDF de `public/assets/docu
 Na atualização 025, envie novamente a pasta `public/assets/documents/modelos`. A migration não usa CMT como sinônimo de PBTC: quando a fabricante não publica um valor único, o campo recebe uma indicação explícita de “não publicado”, “não se aplica” ou “conforme configuração”.
 
 Na atualização 026, envie os novos PDFs cujo nome começa com `mercedes-` em `public/assets/documents/modelos` e as imagens `mercedes-*-oficial.webp` em `public/assets/images/modelos`. A ficha do O 500 RSD 2438 não foi copiada porque o endereço de PDF publicado pela página oficial estava indisponível na data da auditoria; o modelo foi cadastrado somente com os dados confirmados na página pública.
+
+Na atualização 031, envie os três arquivos com data `20261016` de `public/assets/documents/modelos` e as dez imagens com data `20261016` de `public/assets/images/modelos`. Produtos anunciados para venda futura ou ainda sem homologação brasileira confirmada permanecem inativos.
+
+Na atualização 032, envie os quatro PDFs `*-2026.pdf`/`citroen-jumper-ficha-tecnica.pdf` e as imagens com data `20261017` para as pastas equivalentes. Preços de caminhões e ônibus sem tabela pública oficial aparecem como “Preço oficial não publicado”, nunca como estimativa.
 
 A atualização 004 diferencia no campo `mercado` o BYD D9A e o Mercedes-Benz eO500U disponíveis no Brasil dos BYD B12.b e B13 cadastrados como referências do catálogo internacional.

@@ -82,7 +82,7 @@ if ($route === 'familias' && $method === 'POST') {
             $name = trim((string)($_POST['nome'] ?? '')); $brandId=(int)($_POST['marca_id']??0); $vehicleType=(string)($_POST['tipo_veiculo']??'');
             if ($name === '' || !$brandId) throw new RuntimeException('Informe a marca e o nome da família.');
             $brand=$pdo->prepare('SELECT id FROM marcas WHERE id=? AND ativo=1');$brand->execute([$brandId]);if(!$brand->fetchColumn())throw new RuntimeException('Selecione uma marca ativa.');
-            if(!in_array($vehicleType,['caminhao','onibus'],true))throw new RuntimeException('Selecione se a família é de caminhão ou ônibus.');
+            if(!in_array($vehicleType,['caminhao','onibus','van'],true))throw new RuntimeException('Selecione se a família é de caminhão, ônibus ou van.');
             $image = save_family_image($_FILES['imagem'] ?? []);
             $stmt = $pdo->prepare('INSERT INTO familias(marca_id,tipo_veiculo,nome, descricao, imagem, ativo) VALUES(?,?,?,?,?,?)');
             $stmt->execute([$brandId,$vehicleType,$name, trim((string)($_POST['descricao'] ?? '')), $image, (int)isset($_POST['ativo'])]);
@@ -93,7 +93,7 @@ if ($route === 'familias' && $method === 'POST') {
             $name = trim((string)($_POST['nome'] ?? ''));$brandId=(int)($_POST['marca_id']??0);$vehicleType=(string)($_POST['tipo_veiculo']??'');
             if (!$id || $name === '' || !$brandId) throw new RuntimeException('Informe a marca e o nome da família.');
             $brand=$pdo->prepare('SELECT id FROM marcas WHERE id=? AND ativo=1');$brand->execute([$brandId]);if(!$brand->fetchColumn())throw new RuntimeException('Selecione uma marca ativa.');
-            if(!in_array($vehicleType,['caminhao','onibus'],true))throw new RuntimeException('Selecione se a família é de caminhão ou ônibus.');
+            if(!in_array($vehicleType,['caminhao','onibus','van'],true))throw new RuntimeException('Selecione se a família é de caminhão, ônibus ou van.');
             $find = $pdo->prepare('SELECT imagem FROM familias WHERE id=?'); $find->execute([$id]);
             $current = $find->fetch();
             if (!$current) throw new RuntimeException('Família não encontrada.');
@@ -485,7 +485,7 @@ if ($resource === 'families' && database_ready()) {
     if ($q !== '') { $where[] = '(f.nome LIKE ? OR f.descricao LIKE ? OR ma.nome LIKE ?)'; $params[] = "%{$q}%"; $params[] = "%{$q}%"; $params[] = "%{$q}%"; }
     if (in_array($status, ['ativo','inativo'], true)) { $where[] = 'f.ativo=?'; $params[] = $status === 'ativo' ? 1 : 0; }
     if($brandFilter){$where[]='f.marca_id=?';$params[]=$brandFilter;}
-    if(in_array($typeFilter,['caminhao','onibus'],true)){$where[]='f.tipo_veiculo=?';$params[]=$typeFilter;}
+    if(in_array($typeFilter,['caminhao','onibus','van'],true)){$where[]='f.tipo_veiculo=?';$params[]=$typeFilter;}
     $whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
     $count = db()->prepare('SELECT COUNT(*) FROM familias f JOIN marcas ma ON ma.id=f.marca_id' . $whereSql); $count->execute($params); $totalRows = (int)$count->fetchColumn();
     $totalPages = max(1, (int)ceil($totalRows / $perPage));
@@ -503,7 +503,7 @@ if ($resource === 'models' && database_ready()) {
     if (in_array($status, ['ativo','inativo'], true)) { $where[] = 'm.ativo=?'; $params[] = $status === 'ativo' ? 1 : 0; }
     if ($brandFilter > 0) { $where[] = 'f.marca_id=?'; $params[] = $brandFilter; }
     if ($familyFilter > 0) { $where[] = 'm.familia_id=?'; $params[] = $familyFilter; }
-    if(in_array($typeFilter,['caminhao','onibus'],true)){$where[]='f.tipo_veiculo=?';$params[]=$typeFilter;}
+    if(in_array($typeFilter,['caminhao','onibus','van'],true)){$where[]='f.tipo_veiculo=?';$params[]=$typeFilter;}
     $technicalSheetExists = "EXISTS(SELECT 1 FROM modelo_documentos mdf WHERE mdf.modelo_id=m.id AND mdf.tipo='ficha_tecnica' AND mdf.ativo=1 AND (NULLIF(TRIM(mdf.arquivo),'') IS NOT NULL OR NULLIF(TRIM(mdf.url_origem),'') IS NOT NULL))";
     if ($fichaFilter === 'com') $where[] = $technicalSheetExists;
     elseif ($fichaFilter === 'sem') $where[] = "NOT {$technicalSheetExists}";

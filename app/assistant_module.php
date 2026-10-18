@@ -105,7 +105,7 @@ function assistant_system_analytics(PDO $pdo,string $question): ?array
     $requestedBrand=null;
     foreach($brandRows as $brand){
         $brandName=assistant_normalize((string)$brand['nome']);
-        $generic=['caminhoes','caminhao','onibus','trucks','bus'];
+        $generic=['caminhoes','caminhao','onibus','vans','van','trucks','bus'];
         $words=array_filter(explode(' ',$brandName),static fn(string $word):bool=>strlen($word)>=3&&!in_array($word,$generic,true));
         if(str_contains($normalized,$brandName)||array_filter($words,static fn(string $word):bool=>str_contains($normalized,$word))){$requestedBrand=$brand;break;}
     }
@@ -189,9 +189,9 @@ function assistant_catalog_action(PDO $pdo,string $question): ?array
 {
     if(!can('technical_catalog','view'))return null;
     $normalized=assistant_normalize($question);
-    if(!preg_match('/\b(catalogo|compar|filtr|model|veicul|caminh|onibus|resumo)\w*/',$normalized))return null;
+    if(!preg_match('/\b(catalogo|compar|filtr|model|veicul|caminh|onibus|vans?|resumo)\w*/',$normalized))return null;
     $limit=4;
-    if(preg_match('/\b([2-5])\s+(?:veiculos?|modelos?|caminhoes?|onibus)\b/',$normalized,$match))$limit=(int)$match[1];
+    if(preg_match('/\b([2-5])\s+(?:veiculos?|modelos?|caminhoes?|onibus|vans?)\b/',$normalized,$match))$limit=(int)$match[1];
     $configuration='';
     if(preg_match('/\b\d+x\d+\b/',$normalized,$match))$configuration=$match[0];
     $params=[];$scope='';

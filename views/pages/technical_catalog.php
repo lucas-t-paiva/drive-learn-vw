@@ -17,8 +17,18 @@ $modelPayload=static function(array $model) use($specLabels):array {
     $extra=[];
     foreach($specLabels as $key=>$label){$value=$specs[$key]??null;if($value!==null&&$value!=='')$extra[$label]=(string)$value;}
     $vehicleType=(string)($model['tipo_veiculo']??'caminhao');
-    $extra['Tipo de veículo']=$vehicleType==='onibus'?'Ônibus':'Caminhão';
+    $typeLabels=['caminhao'=>'Caminhão','onibus'=>'Ônibus','van'=>'Van'];
+    $extra['Tipo de veículo']=$typeLabels[$vehicleType]??ucfirst($vehicleType);
     $document=$model['ficha_arquivo']?url($model['ficha_arquivo']):(string)($model['ficha_url']??'');
+    $priceType=(string)($model['preco_tipo']??'');
+    $priceMin=$model['preco_valor_min']!==null?(float)$model['preco_valor_min']:null;
+    $priceMax=$model['preco_valor_max']!==null?(float)$model['preco_valor_max']:null;
+    $priceLabel='Preço oficial não publicado';
+    if($priceMin!==null){
+        $formatted='R$ '.number_format($priceMin,2,',','.');
+        $priceLabel=$priceType==='a_partir_de'?'A partir de '.$formatted:$formatted;
+        if($priceMax!==null&&$priceMax!==$priceMin)$priceLabel.=' a R$ '.number_format($priceMax,2,',','.');
+    }
     return [
         'id'=>(int)$model['id'],'marca_id'=>(int)$model['marca_id'],'tipo'=>$vehicleType,'marca'=>$model['marca_nome'],
         'familia_id'=>(int)$model['familia_id'],'familia'=>$model['familia_nome'],'nome'=>$model['nome'],
@@ -27,6 +37,9 @@ $modelPayload=static function(array $model) use($specLabels):array {
         'transmissao'=>$model['transmissao'],'pbt'=>$model['pbt'],'pbtc'=>$model['pbtc']??'',
         'relacao_reducao'=>$model['relacao_reducao']??'','extras'=>$extra,
         'documento'=>$document,'fonte'=>$model['ficha_fonte']?:($specs['fonte_oficial']??$model['ficha_url']??''),
+        'preco'=>$priceLabel,'preco_tipo'=>$priceType?:'sob_consulta','preco_fonte'=>$model['preco_fonte']??'',
+        'preco_consultado_em'=>$model['preco_consultado_em']??'','preco_ano_modelo'=>$model['preco_ano_modelo']??'',
+        'preco_variante'=>$model['preco_variante']??'','preco_observacao'=>$model['preco_observacao']??'',
         'videos'=>(int)$model['videos_publicados'],
     ];
 };
@@ -44,7 +57,7 @@ $modelPayload=static function(array $model) use($specLabels):array {
     <div class="catalog-filter-copy"><div><span class="eyebrow blue">Encontre o veículo</span><h2>Filtre o catálogo</h2></div><span data-catalog-result-count><?= count($catalogModels) ?> modelo(s)</span></div>
     <form class="catalog-filters" data-catalog-filters>
         <div class="catalog-search"><i class="bi bi-search"></i><input type="search" name="q" placeholder="Buscar modelo, motor, potência ou aplicação..." autocomplete="off"></div>
-        <select name="tipo" data-catalog-type><option value="">Caminhões e ônibus</option><option value="caminhao">Caminhões</option><option value="onibus">Ônibus</option></select>
+        <select name="tipo" data-catalog-type><option value="">Todos os segmentos</option><option value="caminhao">Caminhões</option><option value="onibus">Ônibus</option><option value="van">Vans</option></select>
         <select name="marca" data-catalog-brand><option value="">Todas as marcas</option><?php foreach($catalogBrands as $brand): ?><option value="<?= (int)$brand['id'] ?>"><?= e($brand['nome']) ?></option><?php endforeach; ?></select>
         <select name="familia" data-catalog-family><option value="">Todas as famílias</option><?php foreach($catalogFamilies as $family): ?><option value="<?= (int)$family['id'] ?>" data-brand="<?= (int)$family['marca_id'] ?>" data-type="<?= e($family['tipo_veiculo']) ?>"><?= e($family['marca_nome'].' · '.$family['nome']) ?></option><?php endforeach; ?></select>
         <select name="modelo" data-catalog-model><option value="">Todos os modelos</option><?php foreach($catalogModels as $model): ?><option value="<?= (int)$model['id'] ?>" data-brand="<?= (int)$model['marca_id'] ?>" data-type="<?= e($model['tipo_veiculo']) ?>" data-family="<?= (int)$model['familia_id'] ?>"><?= e($model['marca_nome'].' · '.$model['nome']) ?></option><?php endforeach; ?></select>
@@ -64,12 +77,13 @@ $modelPayload=static function(array $model) use($specLabels):array {
         <div class="technical-vehicle-media">
             <span class="vehicle-brand-pill"><?= e($model['marca_nome']) ?></span>
             <label class="compare-toggle"><input type="checkbox" data-catalog-select value="<?= (int)$model['id'] ?>"><span><i class="bi bi-plus-lg"></i><b>Comparar</b></span></label>
-            <?php if($model['imagem']): ?><img src="<?= url($model['imagem']) ?>" alt="<?= e($model['marca_nome'].' '.$model['nome']) ?>" loading="lazy"><?php else: ?><span class="catalog-image-placeholder"><i class="bi bi-truck-front"></i></span><?php endif; ?>
+            <?php if($model['imagem']): ?><img src="<?= url($model['imagem']) ?>" alt="<?= e($model['marca_nome'].' '.$model['nome']) ?>" loading="lazy"><?php else: ?><span class="catalog-image-placeholder"><i class="bi <?= $model['tipo_veiculo']==='onibus'?'bi-bus-front':($model['tipo_veiculo']==='van'?'bi-truck-flatbed':'bi-truck-front') ?>"></i></span><?php endif; ?>
         </div>
         <div class="technical-vehicle-body">
             <span class="vehicle-family"><?= e($model['familia_nome']) ?></span>
             <h2><?= e($model['nome']) ?></h2>
             <p><?= e($model['descricao']?:'Modelo disponível no catálogo técnico.') ?></p>
+            <div class="vehicle-price <?= $payload['preco_tipo']==='sob_consulta'?'is-quote':'' ?>"><span><?= $payload['preco_tipo']==='sob_consulta'?'Preço':'Preço oficial' ?></span><strong><?= e($payload['preco']) ?></strong><small><?= $payload['preco_consultado_em']?'Consultado em '.date('d/m/Y',strtotime($payload['preco_consultado_em'])):'Consulte o fabricante ou concessionária' ?></small></div>
             <dl class="vehicle-spec-preview">
                 <div><dt>Motor</dt><dd><?= e($model['motor']?:'Não informado') ?></dd></div>
                 <div><dt>Potência</dt><dd><?= e($model['potencia']?:'Não informada') ?></dd></div>

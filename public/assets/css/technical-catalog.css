@@ -32,3 +32,10 @@
 
 /* A largura real cresce pelas colunas de 220 px, mantendo até cinco modelos legíveis. */
 .comparison-table{min-width:830px}
+
+.vehicle-price{display:grid;gap:2px;margin:0 0 14px;padding:11px 12px;border:1px solid #b9dceb;border-radius:10px;background:linear-gradient(135deg,#edf8fc,#fff)}
+.vehicle-price>span{color:var(--blue);font-size:.52rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase}
+.vehicle-price>strong{color:var(--navy);font-size:.84rem}
+.vehicle-price>small{color:var(--muted);font-size:.55rem}
+.vehicle-price.is-quote{border-color:var(--line);background:#f7f9fa}
+.vehicle-price.is-quote>span,.vehicle-price.is-quote>strong{color:#647483}

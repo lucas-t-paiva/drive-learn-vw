@@ -59,7 +59,7 @@ $selected=$desk['selected']??null;$internal=service_desk_internal_user();$canMan
         </section>
         <section class="service-create-step" data-service-step="2">
             <div data-service-vehicle-fields><div class="form-grid">
-                <label>Tipo de veículo<select name="tipo_veiculo"><option value="">Caminhão ou ônibus</option><option value="caminhao">Caminhão</option><option value="onibus">Ônibus</option></select></label>
+                <label>Tipo de veículo<select name="tipo_veiculo"><option value="">Selecione o segmento</option><option value="caminhao">Caminhão</option><option value="onibus">Ônibus</option><option value="van">Van</option></select></label>
                 <label>Marca<select name="marca_id"><option value="">Pesquisar marca...</option><?php foreach($desk['brands'] as $brand): ?><option value="<?= (int)$brand['id'] ?>"><?= e($brand['nome']) ?></option><?php endforeach; ?></select></label>
                 <label>Família<select name="familia_id"><option value="">Pesquisar família...</option><?php foreach($desk['families'] as $family): ?><option value="<?= (int)$family['id'] ?>" data-brand="<?= (int)$family['marca_id'] ?>" data-vehicle-type="<?= e($family['tipo_veiculo']??'') ?>"><?= e($family['nome']) ?></option><?php endforeach; ?></select></label>
                 <label>Modelo exato<select name="modelo_id"><option value="">Pesquisar modelo...</option><?php foreach($desk['models'] as $model): ?><option value="<?= (int)$model['id'] ?>" data-family="<?= (int)$model['familia_id'] ?>" data-brand="<?= (int)$model['marca_id'] ?>" data-vehicle-type="<?= e($model['tipo_veiculo']??'') ?>"><?= e($model['nome']) ?></option><?php endforeach; ?></select></label>

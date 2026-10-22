@@ -45,6 +45,7 @@ require_once __DIR__ . '/../app/report_taxonomy_module.php';
 require_once __DIR__ . '/../app/assistant_settings_module.php';
 require_once __DIR__ . '/../app/assistant_module.php';
 require_once __DIR__ . '/../app/model_sheet_reader_module.php';
+require_once __DIR__ . '/../app/benchmark_module.php';
 
 handle_assistant_event($route,$method);
 handle_model_sheet_reader_event($route,$method);
@@ -69,6 +70,7 @@ handle_service_desk_post($route, $method);
 handle_service_priorities_post($route,$method);
 handle_report_taxonomy_post($route,$method);
 handle_assistant_settings_post($route,$method);
+handle_benchmark_post($route,$method);
 
 if ($route === 'familias' && $method === 'POST') {
     verify_csrf();
@@ -445,7 +447,7 @@ if ($route === 'videos' && $method === 'POST') {
 }
 $pages = [
     '' => ['dashboard','Visão geral'], 'dashboard' => ['dashboard','Visão geral'],
-    'biblioteca' => ['library','Biblioteca de treinamentos'], 'frota' => ['fleet','Minha frota'], 'catalogo-tecnico' => ['technical_catalog','Catálogo técnico'], 'normas-emissoes' => ['emission_standards','Normas de emissões'], 'marcas' => ['brands','Marcas de veículos'],
+    'biblioteca' => ['library','Biblioteca de treinamentos'], 'frota' => ['fleet','Minha frota'], 'catalogo-tecnico' => ['technical_catalog','Catálogo técnico'], 'benchmark' => ['benchmark','Benchmark competitivo'], 'normas-emissoes' => ['emission_standards','Normas de emissões'], 'marcas' => ['brands','Marcas de veículos'],
     'familias' => ['families','Famílias de veículos'], 'modelos' => ['models','Modelos'],
     'categorias' => ['categories','Categorias'], 'subcategorias' => ['subcategories','Subcategorias'], 'videos' => ['videos','Vídeos'],
     'empresas-vwco' => ['organizations','Empresas VWCO'], 'clientes' => ['clients','Clientes'], 'usuarios' => ['users','Usuários'], 'setores' => ['sectors','Setores e equipes'],
@@ -478,6 +480,7 @@ if ($resource === 'service_priorities' && database_ready()) $servicePriorities =
 if ($resource === 'sectors' && database_ready()) $sectors = load_sectors_page();
 if (in_array($resource,['report_categories','report_terms'],true) && database_ready()) $taxonomy = load_report_taxonomy_page($resource);
 if ($resource === 'assistant_settings' && database_ready()) $assistantSettings = load_assistant_settings_page();
+if ($resource === 'benchmark' && database_ready()) $benchmark = load_benchmark_page();
 if ($resource === 'families' && database_ready()) {
     [$page, $perPage, $offset] = pagination_params();
     $q = trim((string)($_GET['q'] ?? '')); $status = (string)($_GET['status'] ?? '');$brandFilter=(int)($_GET['marca']??0);$typeFilter=(string)($_GET['tipo']??'');$brandOptions=db()->query('SELECT id,nome FROM marcas WHERE ativo=1 ORDER BY nome')->fetchAll();

@@ -193,6 +193,7 @@ document.querySelectorAll('[data-video-preview]').forEach(button=>button.addEven
 document.querySelectorAll('#video-preview-modal [data-modal-close]').forEach(button=>button.addEventListener('click',()=>document.querySelector('[data-video-player]').innerHTML=''));
 
 const searchableTargets=[
+ ['.benchmark-page select[data-searchable]','Pesquisar...'],
  ['[data-model-form] select[name="familia_id"]','Pesquisar família...'],
  ['[data-model-bulk-form] select[name="bulk_family_id"]','Pesquisar família...'],
  ['[data-family-form] select[name="marca_id"]','Pesquisar marca...'],

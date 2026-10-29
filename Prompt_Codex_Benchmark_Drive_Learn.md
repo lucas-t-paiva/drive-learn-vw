@@ -6,7 +6,7 @@ Implemente neste repositório um módulo completo de Benchmark e Inteligência d
 
 Já existem cadastros de marcas, famílias, modelos e outros módulos. Reaproveite esses registros, seus IDs, componentes, layouts, navegação, autenticação, permissões, APIs, armazenamento e padrões de código. Não recrie uma base paralela de veículos.
 
-O novo módulo compara equipamentos, funcionalidades, peculiaridades e experiência de uso de caminhões, começando pela família Volkswagen Meteor e pelos concorrentes Volvo FH e Mercedes-Benz Actros no mercado brasileiro. Deve revelar vantagens VWCO, equivalências, oportunidades de produto e oportunidades de treinamento.
+O novo módulo compara equipamentos, funcionalidades, peculiaridades e experiência de uso de caminhões, começando pela família Volkswagen Meteor e pelos concorrentes Volvo FMX e Mercedes-Benz Actros no mercado brasileiro. Deve revelar vantagens VWCO, equivalências, oportunidades de produto e oportunidades de treinamento.
 
 O usuário poderá cadastrar categorias, atributos, configurações de veículos, observações, fotos, links e anexos; selecionar seus vínculos com uma ou mais marcas, famílias, modelos ou configurações; e comparar lado a lado como em um catálogo. Tudo deve persistir no MySQL e ser editável conforme permissões.
 
@@ -30,7 +30,7 @@ Adote como proposta inicial configurável:
 
 Registrar separadamente ano-modelo, ano de fabricação quando conhecido, geração/facelift, versão comercial, cabine, tração, suspensão, pacote, mercado, aplicação e data de referência. Ano de uma notícia não comprova ano-modelo. Não preencher ano ou pacote por suposição.
 
-Uma configuração concreta é a unidade principal do comparador. Um recurso de um Meteor Ultra não pode ser atribuído automaticamente ao Highline nem a todos os Meteor. A mesma regra vale para FH e Actros. Manter indicação de anunciado, comercialização confirmada, histórico ou situação não confirmada.
+Uma configuração concreta é a unidade principal do comparador. Um recurso de um Meteor Ultra não pode ser atribuído automaticamente ao Highline nem a todos os Meteor. A mesma regra vale para FMX e Actros. Manter indicação de anunciado, comercialização confirmada, histórico ou situação não confirmada.
 
 Dados sem ano-modelo comprovado podem ficar em pesquisa, com escopo conhecido e pendência explícita; não devem aparecer como confirmação técnica de uma configuração específica.
 
@@ -186,12 +186,12 @@ Pontos de partida, a consultar novamente:
 - https://www.vwco.com.br/
 - https://www.vwco.com.br/caminhoes/Meteor?id=21
 - https://webconfigurador.vwco.com.br/
-- https://www.volvotrucks.com.br/pt-br/trucks/models/volvo-fh.html
+- https://www.volvotrucks.com.br/pt-br/trucks/models/volvo-fmx.html
 - https://www.mercedes-benz-trucks.com.br/caminhoes/actros
 
 Candidatos para seleção técnica, NÃO equivalências ou disponibilidade já confirmadas:
-- Meteor 28.480 Highline 6x2 × Volvo FH 460/500 6x2 × Actros 2548 6x2.
-- Meteor 29.530 Highline 6x4 × Volvo FH 540 6x4 × Actros 2653 6x4.
+- Meteor 28.480 Highline 6x2 × Volvo FM 460/500 6x2 × Actros 2548 6x2.
+- Meteor 29.530 Highline 6x4 × Volvo FMX 540 6x4 × Actros 2653 6x4.
 - Investigar separadamente os Meteor Ultra anunciados 28.500, 28.540 e 29.540, validando situação comercial, ano-modelo e novos pares comparáveis.
 
 Confirmar potência, torque, tração, cabine, suspensão, aplicação, limites operacionais e ano/pacote antes de fechar um trio. Não misturar ficha técnica antiga com recursos da geração atual. Não comparar 6x2 e 6x4 como equivalentes operacionais sem indicação explícita.
@@ -200,7 +200,7 @@ Metas de carga: taxonomia completa, configurações comprovadas das três famíl
 
 Investigações iniciais úteis:
 - Meteor: cluster, multimídia, funções do volante, seletor e modos; separar Highline de Ultra.
-- FH: sistema de câmeras, cluster/multimídia, direção dinâmica e iluminação.
+- FMX: sistema de câmeras, cluster/multimídia, direção dinâmica e iluminação.
 - Actros: MirrorCam, painel/multimídia, seletor e sistemas de assistência.
 Esses são temas de pesquisa, não declaração de equipamento instalado em toda configuração.
 

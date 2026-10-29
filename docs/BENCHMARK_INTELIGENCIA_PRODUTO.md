@@ -67,10 +67,10 @@ O comparador trabalha no navegador e não recarrega a página. Permite:
 
 ## Carga inicial e fontes oficiais
 
-A migração cria cinco recortes brasileiros quando os modelos exatos já existem: Meteor 29.530 Highline, Volvo FH 540 6x4T, Actros 2653 S 6x4 Top Space MY2024, Scania R 500 6x4 Super Smart Dash e DAF XF FTT 6x4 530. Não cria modelos artificiais. Os fatos sem associação inequívoca a pedido, pacote ou cabina são mantidos como disponibilidade não confirmada.
+A migração cria cinco recortes brasileiros quando os modelos exatos já existem: Meteor 29.530 Highline, Volvo FMX 540 6x4T, Actros 2653 S 6x4 Top Space MY2024, Scania R 500 6x4 Super Smart Dash e DAF XF FTT 6x4 530. Não cria modelos artificiais. Os fatos sem associação inequívoca a pedido, pacote ou cabina são mantidos como disponibilidade não confirmada.
 
 - Volkswagen Meteor Highline: painel digital de 10 polegadas, central multimídia de 7 polegadas e espelhamento de celular. Fonte: [VWCO — Meteor 28.480](https://www.vwco.com.br/caminhoes/Meteor/Meteor28.480-euro?id=21&productid=219).
-- Volvo FH: sistema de monitoramento por câmeras com visão noturna e alternativa por espelhos, com aviso oficial de variação por configuração. Fonte: [Volvo Trucks Brasil — Volvo FH](https://www.volvotrucks.com.br/pt-br/trucks/models/volvo-fh.html).
+- Volvo FMX: recursos de visibilidade, segurança e sistema de monitoramento por câmeras sujeitos à configuração. Fonte: [Volvo Trucks Brasil — Volvo FMX](https://www.volvotrucks.com.br/pt-br/trucks/models/volvo-fmx.html).
 - Mercedes-Benz Actros: MirrorCam, opções de painel analógico/digital e ABA 5, sujeitos à configuração. Fonte: [Mercedes-Benz Trucks Brasil — Actros](https://www.mercedes-benz-trucks.com.br/caminhoes/actros).
 - Scania R 500 Super: Smart Dash, multimídia de 10,1 ou 12,9 polegadas, Apple CarPlay e Android Auto. Fonte: [Scania Brasil — Super](https://www.scania.com/br/pt/home/products/trucks/Scania-Super.html).
 - DAF XF 530: AEBS, ACC e LDWS; integração móvel cadastrada separadamente como acessório PACCAR Parts. Fontes: [DAF in Action](https://www.dafcaminhoes.com.br/-/media/files/countries/br/daf-in-action/2025/daf-in-action-01-2025.pdf?rev=073f315b24af41f2aa54d380dad5afff) e [PACCAR Parts](https://www.dafcaminhoes.com.br/-/media/files/countries/br/brochures/novo-daf-xf/30-11-2020-guia-de-bolso-paccar-parts.pdf).

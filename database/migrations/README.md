@@ -35,6 +35,14 @@ Faça um backup antes de importar. No phpMyAdmin, selecione o banco correto e im
 30. `20260916_030_catalogo_onibus_iveco.sql` — atualiza a linha IVECO BUS com modelos e especificações técnicas disponíveis nas fontes oficiais.
 31. `20261016_031_atualizacao_catalogo_multimarcas.sql` — auditoria incremental de VWCO, Mercedes-Benz, IVECO, BYD, Volvo, Scania e DAF; inclui 18 modelos, complementa o Volvo BZR e vincula novas fichas e imagens oficiais.
 32. `20261017_032_segmento_vans_precos_catalogo.sql` — adiciona o segmento Vans, cria o histórico auditável de preços oficiais e cadastra 31 versões Mercedes-Benz, Ford, Renault, Fiat, Peugeot, Citroën e IVECO com especificações, fontes e fichas disponíveis.
+33. `20261021_033_benchmark_inteligencia_produto.sql` — cria a estrutura do módulo de Benchmark, incluindo configurações, atributos, observações, evidências, análises e histórico.
+34. `20261021_034_benchmark_referencia_vwco.sql` — adiciona a configuração de referência VWCO utilizada no comparador competitivo.
+35. `20261024_035_benchmark_seletor_constellation_fh_cofco.sql` — registra o levantamento de campo inicial do seletor de marchas na COFCO.
+36. `20261027_036_auditoria_catalogo_oficial.sql` — aplica a auditoria incremental do catálogo oficial multimarcas.
+37. `20261027_037_corrige_cadastro_meteor_ultra.sql` — garante o cadastro idempotente do Meteor Ultra na estrutura real do banco.
+38. `20261027_038_auditoria_catalogo_segmentos.sql` — complementa lacunas oficiais por marca e segmento.
+39. `20261027_039_corrige_benchmark_fh_para_fmx.sql` — corrige a referência Volvo do levantamento de campo de FH 540 para FMX 540.
+40. `20261029_040_benchmark_gestao_registros.sql` — identifica a origem manual, importada ou gerada por IA das análises e habilita a gestão rastreável dos registros.
 
 Cada arquivo registra sua versão em `schema_migrations`. Os arquivos foram preparados para uma única importação; não edite nem pule a ordem.
 

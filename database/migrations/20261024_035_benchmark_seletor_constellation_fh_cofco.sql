@@ -1,5 +1,5 @@
 -- Drive Learn | Benchmark do seletor de marchas
--- VW Constellation 33.460 6x4 x Volvo FH 540 6x4T
+-- VW Constellation 33.460 6x4 x Volvo FMX 540 6x4T
 -- Pesquisa de campo: COFCO, unidade de Votuporanga-SP.
 --
 -- Premissas de qualidade:
@@ -125,15 +125,15 @@ WHERE NOT EXISTS (
 INSERT INTO benchmark_fontes
   (titulo,tipo,url,publicador,consultado_em,observacao)
 SELECT
-  'Volvo FH — evolucao ergonomica do seletor I-Shift',
+  'Volvo FMX — seletor I-Shift e ergonomia de cabine',
   'site_oficial',
-  'https://www.volvotrucks.com/en-en/news-stories/stories/2020/feb/transport-improvements-fh-cab.html',
+  'https://www.volvotrucks.com.br/pt-br/trucks/models/volvo-fmx.html',
   'Volvo Trucks',
   '2026-10-24',
-  'A Volvo descreve a unidade I-Shift mais fina, mais baixa e posicionada mais a frente. A configuracao exata deve ser confirmada no veiculo avaliado.'
+  'Pagina oficial do Volvo FMX. A posicao junto ao banco foi observada na pesquisa de campo e deve ser confirmada na configuracao exata do veiculo avaliado.'
 WHERE NOT EXISTS (
   SELECT 1 FROM benchmark_fontes
-  WHERE url='https://www.volvotrucks.com/en-en/news-stories/stories/2020/feb/transport-improvements-fh-cab.html'
+  WHERE url='https://www.volvotrucks.com.br/pt-br/trucks/models/volvo-fmx.html'
 );
 
 INSERT INTO benchmark_fontes
@@ -177,7 +177,7 @@ ON DUPLICATE KEY UPDATE
   confianca=VALUES(confianca),
   observacao=VALUES(observacao);
 
--- Caracteristica oficial do Volvo FH. Mantem a disponibilidade como nao confirmada
+-- Caracteristica observada no Volvo FMX. Mantem a disponibilidade como nao confirmada
 -- porque a arquitetura pode variar conforme ano, mercado e especificacao do pedido.
 INSERT INTO benchmark_valores
   (configuracao_id,atributo_id,valor_texto,status_dado,disponibilidade,status_revisao,origem,fonte_id,confianca,observacao)
@@ -189,12 +189,12 @@ SELECT
   'nao_confirmado',
   'validado',
   'pesquisa_documental',
-  (SELECT MIN(s.id) FROM benchmark_fontes s WHERE s.url='https://www.volvotrucks.com/en-en/news-stories/stories/2020/feb/transport-improvements-fh-cab.html'),
+  (SELECT MIN(s.id) FROM benchmark_fontes s WHERE s.url='https://www.volvotrucks.com.br/pt-br/trucks/models/volvo-fmx.html'),
   92,
-  'A fonte oficial confirma o redesenho ergonomico. A posicao junto ao banco foi informada na pesquisa de campo e deve ser confirmada no FH 540 da COFCO, incluindo ano-modelo, cabine e especificacao, antes de transformar a percepcao em conclusao de produto.'
+  'A posicao junto ao banco foi informada na pesquisa de campo e deve ser confirmada no FMX 540 da COFCO, incluindo ano-modelo, cabine e especificacao, antes de transformar a percepcao em conclusao de produto.'
 FROM benchmark_configuracoes c
 JOIN benchmark_atributos a ON a.slug='seletor-marchas'
-WHERE c.nome='Volvo FH 540 6x4T · Brasil'
+WHERE c.nome='Volvo FMX 540 6x4T · Brasil'
 ON DUPLICATE KEY UPDATE
   valor_texto=VALUES(valor_texto),
   status_dado=VALUES(status_dado),
@@ -209,7 +209,7 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO benchmark_comparacoes
   (titulo,descricao,referencia_configuracao_id,filtros_json,publico_interno)
 SELECT
-  'Seletor de marchas — Constellation 33.460 x Volvo FH 540',
+  'Seletor de marchas — Constellation 33.460 x Volvo FMX 540',
   'Comparacao qualitativa da arquitetura, visibilidade, alcance e identificacao do seletor. Nao define vencedor; combina documentacao oficial e percepcao de campo a validar.',
   c.id,
   JSON_OBJECT('categoria','comandos-ergonomia','atributo','seletor-marchas','status','em_analise'),
@@ -218,7 +218,7 @@ FROM benchmark_configuracoes c
 WHERE c.nome='Constellation 33.460 6x4 · COFCO Votuporanga'
   AND NOT EXISTS (
     SELECT 1 FROM benchmark_comparacoes
-    WHERE titulo='Seletor de marchas — Constellation 33.460 x Volvo FH 540'
+    WHERE titulo='Seletor de marchas — Constellation 33.460 x Volvo FMX 540'
   )
 LIMIT 1;
 
@@ -227,32 +227,32 @@ INSERT IGNORE INTO benchmark_comparacao_configuracoes
 SELECT cp.id,c.id,1
 FROM benchmark_comparacoes cp
 JOIN benchmark_configuracoes c ON c.nome='Constellation 33.460 6x4 · COFCO Votuporanga'
-WHERE cp.titulo='Seletor de marchas — Constellation 33.460 x Volvo FH 540';
+WHERE cp.titulo='Seletor de marchas — Constellation 33.460 x Volvo FMX 540';
 
 INSERT IGNORE INTO benchmark_comparacao_configuracoes
   (comparacao_id,configuracao_id,ordem)
 SELECT cp.id,c.id,2
 FROM benchmark_comparacoes cp
-JOIN benchmark_configuracoes c ON c.nome='Volvo FH 540 6x4T · Brasil'
-WHERE cp.titulo='Seletor de marchas — Constellation 33.460 x Volvo FH 540';
+JOIN benchmark_configuracoes c ON c.nome='Volvo FMX 540 6x4T · Brasil'
+WHERE cp.titulo='Seletor de marchas — Constellation 33.460 x Volvo FMX 540';
 
 -- Analise: fato, voz do motorista e interpretacao permanecem explicitamente separados.
 INSERT INTO benchmark_analises
   (titulo,tipo,impacto,prioridade,status,area_responsavel,fato_observado,citacao_motorista,interpretacao_tecnica,proximo_passo)
 SELECT
-  'Visibilidade e alcance do seletor — Constellation 33.460 x FH 540',
+  'Visibilidade e alcance do seletor — Constellation 33.460 x FMX 540',
   'investigacao',
   'medio',
   'P3',
   'em_analise',
   'Engenharia de Cabine / Ergonomia e HMI',
-  'A fonte oficial da VWCO documenta o seletor V-Tronic na coluna de direcao. A Volvo documenta a unidade I-Shift redesenhada, mais fina, baixa e posicionada mais a frente. Na pesquisa de campo realizada na COFCO, unidade de Votuporanga-SP, o motorista identificou o comando do FH avaliado junto ao banco e informou preferir essa arquitetura por perceber melhor visualizacao e alcance. O participante relatou que o comando do Volkswagen, posicionado atras do volante, pode dificultar a identificacao visual da posicao e contribuir para selecionar uma posicao diferente da pretendida. Trata-se de um relato individual ainda nao validado por ensaio comparativo.',
+  'A fonte oficial da VWCO documenta o seletor V-Tronic na coluna de direcao. A pagina oficial da Volvo confirma o FMX e a transmissao I-Shift; a posicao do comando junto ao banco foi observada na pesquisa de campo. Na pesquisa realizada na COFCO, unidade de Votuporanga-SP, o motorista informou preferir essa arquitetura por perceber melhor visualizacao e alcance. O participante relatou que o comando do Volkswagen, posicionado atras do volante, pode dificultar a identificacao visual da posicao e contribuir para selecionar uma posicao diferente da pretendida. Trata-se de um relato individual ainda nao validado por ensaio comparativo.',
   NULL,
   'O ponto levantado esta relacionado a visibilidade, descobribilidade do comando, confirmacao da selecao e alcance relativo ao motorista. A arquitetura junto ao banco pode acompanhar sua regulagem e seus movimentos; a arquitetura na coluna reduz o deslocamento da mao a partir do volante e libera a lateral da cabine. Os dados atuais nao permitem afirmar superioridade. Tambem deve ser verificado se a dificuldade decorre da posicao fisica, da logica de acionamento, da sinalizacao no cluster, da familiaridade ou da combinacao desses fatores.',
   'Confirmar ano-modelo, cabine e transmissao dos dois veiculos da COFCO; fotografar o campo de visao real; aplicar roteiro padronizado com mais motoristas; medir acerto de D/N/R e modo manual, tempo de selecao, desvio do olhar, alcance e preferencia em veiculo parado e em percurso controlado. Nao solicitar troca manual durante curva em via aberta.'
 WHERE NOT EXISTS (
   SELECT 1 FROM benchmark_analises
-  WHERE titulo='Visibilidade e alcance do seletor — Constellation 33.460 x FH 540'
+  WHERE titulo='Visibilidade e alcance do seletor — Constellation 33.460 x FMX 540'
 );
 
 UPDATE benchmark_analises
@@ -261,32 +261,32 @@ SET tipo='investigacao',
     prioridade='P3',
     status='em_analise',
     area_responsavel='Engenharia de Cabine / Ergonomia e HMI',
-    fato_observado='A fonte oficial da VWCO documenta o seletor V-Tronic na coluna de direcao. A Volvo documenta a unidade I-Shift redesenhada, mais fina, baixa e posicionada mais a frente. Na pesquisa de campo realizada na COFCO, unidade de Votuporanga-SP, o motorista identificou o comando do FH avaliado junto ao banco e informou preferir essa arquitetura por perceber melhor visualizacao e alcance. O participante relatou que o comando do Volkswagen, posicionado atras do volante, pode dificultar a identificacao visual da posicao e contribuir para selecionar uma posicao diferente da pretendida. Trata-se de um relato individual ainda nao validado por ensaio comparativo.',
+    fato_observado='A fonte oficial da VWCO documenta o seletor V-Tronic na coluna de direcao. A pagina oficial da Volvo confirma o FMX e a transmissao I-Shift; a posicao do comando junto ao banco foi observada na pesquisa de campo. Na pesquisa realizada na COFCO, unidade de Votuporanga-SP, o motorista informou preferir essa arquitetura por perceber melhor visualizacao e alcance. O participante relatou que o comando do Volkswagen, posicionado atras do volante, pode dificultar a identificacao visual da posicao e contribuir para selecionar uma posicao diferente da pretendida. Trata-se de um relato individual ainda nao validado por ensaio comparativo.',
     citacao_motorista=NULL,
     interpretacao_tecnica='O ponto levantado esta relacionado a visibilidade, descobribilidade do comando, confirmacao da selecao e alcance relativo ao motorista. A arquitetura junto ao banco pode acompanhar sua regulagem e seus movimentos; a arquitetura na coluna reduz o deslocamento da mao a partir do volante e libera a lateral da cabine. Os dados atuais nao permitem afirmar superioridade. Tambem deve ser verificado se a dificuldade decorre da posicao fisica, da logica de acionamento, da sinalizacao no cluster, da familiaridade ou da combinacao desses fatores.',
     proximo_passo='Confirmar ano-modelo, cabine e transmissao dos dois veiculos da COFCO; fotografar o campo de visao real; aplicar roteiro padronizado com mais motoristas; medir acerto de D/N/R e modo manual, tempo de selecao, desvio do olhar, alcance e preferencia em veiculo parado e em percurso controlado. Nao solicitar troca manual durante curva em via aberta.'
-WHERE titulo='Visibilidade e alcance do seletor — Constellation 33.460 x FH 540';
+WHERE titulo='Visibilidade e alcance do seletor — Constellation 33.460 x FMX 540';
 
 INSERT IGNORE INTO benchmark_analise_configuracoes
   (analise_id,configuracao_id)
 SELECT a.id,c.id
 FROM benchmark_analises a
 JOIN benchmark_configuracoes c ON c.nome='Constellation 33.460 6x4 · COFCO Votuporanga'
-WHERE a.titulo='Visibilidade e alcance do seletor — Constellation 33.460 x FH 540';
+WHERE a.titulo='Visibilidade e alcance do seletor — Constellation 33.460 x FMX 540';
 
 INSERT IGNORE INTO benchmark_analise_configuracoes
   (analise_id,configuracao_id)
 SELECT a.id,c.id
 FROM benchmark_analises a
-JOIN benchmark_configuracoes c ON c.nome='Volvo FH 540 6x4T · Brasil'
-WHERE a.titulo='Visibilidade e alcance do seletor — Constellation 33.460 x FH 540';
+JOIN benchmark_configuracoes c ON c.nome='Volvo FMX 540 6x4T · Brasil'
+WHERE a.titulo='Visibilidade e alcance do seletor — Constellation 33.460 x FMX 540';
 
 INSERT IGNORE INTO benchmark_analise_atributos
   (analise_id,atributo_id)
 SELECT a.id,ba.id
 FROM benchmark_analises a
 JOIN benchmark_atributos ba ON ba.slug='seletor-marchas'
-WHERE a.titulo='Visibilidade e alcance do seletor — Constellation 33.460 x FH 540';
+WHERE a.titulo='Visibilidade e alcance do seletor — Constellation 33.460 x FMX 540';
 
 -- Diagnostico final. O resultado esperado e uma linha com duas configuracoes,
 -- dois valores e uma analise. Se algum total for menor, confirme se a migration 033 foi executada.
@@ -303,6 +303,6 @@ LEFT JOIN benchmark_valores bv
 LEFT JOIN benchmark_analise_configuracoes ac ON ac.configuracao_id=cc.configuracao_id
 LEFT JOIN benchmark_analises an
   ON an.id=ac.analise_id
- AND an.titulo='Visibilidade e alcance do seletor — Constellation 33.460 x FH 540'
-WHERE cp.titulo='Seletor de marchas — Constellation 33.460 x Volvo FH 540'
+ AND an.titulo='Visibilidade e alcance do seletor — Constellation 33.460 x FMX 540'
+WHERE cp.titulo='Seletor de marchas — Constellation 33.460 x Volvo FMX 540'
 GROUP BY cp.id,cp.titulo;

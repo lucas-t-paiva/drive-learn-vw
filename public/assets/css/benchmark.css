@@ -83,3 +83,14 @@
  .benchmark-print-header{display:block!important;margin-bottom:15px;padding-bottom:12px;border-bottom:2px solid #001e50}.benchmark-print-header span{color:#0068a9;font-size:8pt;font-weight:800;letter-spacing:.12em}.benchmark-print-header h1{margin:3px 0;font-size:20pt}.benchmark-print-header p,.benchmark-print-header small{margin:0;color:#5f6f82}
  .comparison-matrix thead th{position:static;background:#001e50!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}.comparison-matrix th:first-child,.comparison-matrix td:first-child{position:static}.compare-config-head{min-height:90px}.compare-config-head img{display:block!important;height:55px}.compare-cell-gallery{height:90px}.compare-cell-gallery button{display:none!important}.compare-cell-gallery img{display:none!important}.compare-cell-gallery img.active{display:block!important}.comparison-matrix th,.comparison-matrix td{min-width:0;padding:7px}
 }
+
+/* Administração dos campos homologados e galerias sem recorte. */
+.taxonomy-actions,.taxonomy-item-actions{display:flex;align-items:center;gap:5px;margin-left:auto}.taxonomy-actions form,.taxonomy-item-actions form{display:inline-flex;margin:0}.taxonomy-grid article>header>div:nth-child(2){min-width:0}.taxonomy-grid li>div:first-child{min-width:0}.taxonomy-grid li>span{flex:0 0 auto}.taxonomy-grid .icon-action{width:30px;height:30px}.compare-cell-gallery{height:160px;border:1px solid #dfe8ee;background:#fff}.compare-cell-gallery img,.compare-cell-gallery img.active{object-fit:contain;object-position:center;background:#fff;padding:4px}
+
+@media(max-width:720px){.taxonomy-grid li{align-items:flex-start;flex-wrap:wrap}.taxonomy-item-actions{width:100%;justify-content:flex-end}}
+
+@media print{
+ .compare-cell-gallery{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;height:auto!important;overflow:visible!important;padding:3px;border:1px solid #dfe8ee;background:#fff!important;break-inside:avoid}
+ .compare-cell-gallery button{display:none!important}
+ .compare-cell-gallery img,.compare-cell-gallery img.active{display:block!important;width:100%!important;height:82px!important;padding:2px;object-fit:contain!important;background:#fff!important}
+}
